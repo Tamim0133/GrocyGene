@@ -7,10 +7,12 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Mail, Phone, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
@@ -28,7 +30,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleNextStep = () => {
@@ -62,7 +64,7 @@ export default function OnboardingScreen() {
             style={styles.input}
             placeholder="Enter your full name"
             value={formData.name}
-            onChangeText={(value) => handleInputChange('name', value)}
+            onChangeText={(val) => handleInputChange('name', val)}
             placeholderTextColor="#A0AEC0"
           />
         </View>
@@ -75,7 +77,7 @@ export default function OnboardingScreen() {
               style={[styles.input, styles.inputWithIconText]}
               placeholder="Enter your email"
               value={formData.email}
-              onChangeText={(value) => handleInputChange('email', value)}
+              onChangeText={(val) => handleInputChange('email', val)}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#A0AEC0"
@@ -91,19 +93,12 @@ export default function OnboardingScreen() {
               style={[styles.input, styles.inputWithIconText]}
               placeholder="Create a strong password"
               value={formData.password}
-              onChangeText={(value) => handleInputChange('password', value)}
+              onChangeText={(val) => handleInputChange('password', val)}
               secureTextEntry={!showPassword}
               placeholderTextColor="#A0AEC0"
             />
-            <TouchableOpacity
-              style={styles.eyeIcon}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? (
-                <EyeOff size={20} color="#A0AEC0" />
-              ) : (
-                <Eye size={20} color="#A0AEC0" />
-              )}
+            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+              {showPassword ? <EyeOff size={20} color="#A0AEC0" /> : <Eye size={20} color="#A0AEC0" />}
             </TouchableOpacity>
           </View>
         </View>
@@ -127,7 +122,7 @@ export default function OnboardingScreen() {
           style={styles.otpInput}
           placeholder="000000"
           value={formData.otp}
-          onChangeText={(value) => handleInputChange('otp', value)}
+          onChangeText={(val) => handleInputChange('otp', val)}
           keyboardType="numeric"
           maxLength={6}
           textAlign="center"
@@ -142,44 +137,41 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: step === 1 ? '50%' : '100%' },
-              ]}
-            />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: step === 1 ? '50%' : '100%' }]} />
+            </View>
+            <Text style={styles.progressText}>Step {step} of 2</Text>
           </View>
-          <Text style={styles.progressText}>Step {step} of 2</Text>
-        </View>
 
-        {step === 1 ? renderStepOne() : renderStepTwo()}
+          {step === 1 ? renderStepOne() : renderStepTwo()}
 
-        <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
-          <AnimatedTouchableOpacity
-            style={styles.nextButton}
-            onPress={handleNextStep}
-          >
-            <Text style={styles.nextButtonText}>
-              {step === 1 ? 'Send OTP' : 'Get Started'}
-            </Text>
-            <ArrowRight size={20} color="#FFFFFF" />
-          </AnimatedTouchableOpacity>
+          <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
+            <AnimatedTouchableOpacity style={styles.nextButton} onPress={handleNextStep}>
+              <Text style={styles.nextButtonText}>{step === 1 ? 'Send OTP' : 'Get Started'}</Text>
+              <ArrowRight size={20} color="#FFFFFF" />
+            </AnimatedTouchableOpacity>
 
-          {step === 1 && (
-            <TouchableOpacity
-              style={styles.loginLink}
-              onPress={() => router.push('/login')}
-            >
-              <Text style={styles.loginLinkText}>
-                Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
-              </Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      </ScrollView>
+            {step === 1 && (
+              <TouchableOpacity style={styles.loginLink} onPress={() => router.push('/login')}>
+                <Text style={styles.loginLinkText}>
+                  Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -274,6 +266,7 @@ const styles = StyleSheet.create({
   inputWithIconText: {
     paddingLeft: 52,
     paddingRight: 52,
+    flex: 1,
   },
   inputIcon: {
     position: 'absolute',
