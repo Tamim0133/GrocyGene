@@ -169,7 +169,7 @@ export default function ProfileSetupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Animated.View entering={FadeInUp.delay(200)} style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerIconContainer}>
@@ -414,18 +414,18 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   genderContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column', // Vertical stacking
     gap: 8,
   },
   genderButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    width: 120,  // smaller width for each button
   },
   genderButtonActive: {
     backgroundColor: '#6BCF7F',
