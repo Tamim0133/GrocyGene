@@ -13,10 +13,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Set up multer to handle multipart/form-data
+
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Gemini AI setup
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const textModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 const imageModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -31,12 +31,24 @@ app.post('/process-text', async (req, res) => {
         if (req.body.text) {
             console.log('Received text:', req.body.text);
 
-            const prompt = `Extract the product names, quantities, and prices from the following text and return a JSON array like:
+            const prompt = `You will be given a shopping list in either Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the text and return it in JSON format as shown below:
+
                             [
                             { "name": "Product A", "quantity": "1", "price": "100" },
                             ...
-                            ] If no price is send then keep price field null.
-                            ${req.body.text}`;
+                            ]
+
+                            Instructions:
+                            1. Extract **only the main product name** and convert it to a **generic English name**.
+                            - Example: "chal" → "Rice", "lobon" → "Salt", "murgir mangsho" → "Chicken"
+                            - Ignore brand names or unnecessary descriptors (e.g., "premium rice" → "Rice").
+                            2. If a quantity is mentioned, extract it.
+                            - Example: "2kg chal" → quantity: "2kg"
+                            3. If a price is mentioned, include just the numeric value. If not, set "price": null.
+                            4. The final JSON array should be clean, without extra formatting or explanation.
+
+                            Now process the following text:
+                            ${req.body.text}`
 
             const result = await textModel.generateContent(prompt);
             let response = await result.response.text();
@@ -61,11 +73,23 @@ app.post('/process', upload.single('receiptImage'), async (req, res) => {
         console.log('Received image:');
 
 
-        const prompt = `Extract product names, quantities, and prices from the receipt image and return only a JSON array like:
-                [
-                { "name": "Product A", "quantity": "1", "price": "100" },
-                ...
-                ]`;
+        const prompt = `You will be given a receipt image that may contain product names in Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the image and return it in JSON format as shown below:
+                        [
+                        { "name": "Product A", "quantity": "1", "price": "100" },
+                        ...
+                        ]
+
+                        Instructions:
+                        1. Extract only the **main product name** and convert it to a **generic English name**.
+                        - Example: "chal" → "Rice", "lobon" → "Salt", "murgir mangsho" → "Chicken"
+                        - Ignore brand names or unnecessary descriptors (e.g., "premium rice" → "Rice").
+                        2. If a quantity is mentioned, extract it.
+                        - Example: "2kg chal" → quantity: "2kg"
+                        3. If a price is mentioned, include just the numeric value. If not, set "price": null.
+                        4. Return a clean JSON array only, without extra formatting, markdown, or explanation.
+
+                        Now process the following receipt image:
+                        `;
 
         const imagePart = {
             inlineData: {
