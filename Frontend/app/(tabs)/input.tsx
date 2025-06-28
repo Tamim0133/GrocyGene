@@ -1,247 +1,94 @@
+import axios from 'axios';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
+import { Image } from 'react-native';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, Mic, CreditCard as Edit, Image as ImageIcon, Upload, Plus, ScanLine } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Card } from '@/components/ui/Card';
+import { Camera, Upload } from 'lucide-react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Button } from '@/components/ui/Button';
 
-type InputMethod = 'receipt' | 'screenshot' | 'voice' | 'manual';
-
 export default function InputScreen() {
-  const [activeMethod, setActiveMethod] = useState<InputMethod>('receipt');
-  const [manualItems, setManualItems] = useState(['']);
-  const [isRecording, setIsRecording] = useState(false);
+  const [manualText, setManualText] = useState('');
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
 
-  const inputMethods = [
-    {
-      id: 'receipt' as InputMethod,
-      title: 'Scan Receipt',
-      subtitle: 'OCR from receipt photo',
-      icon: Camera,
-      color: '#6BCF7F',
-      bgColor: 'rgba(107, 207, 127, 0.1)',
-    },
-    {
-      id: 'screenshot' as InputMethod,
-      title: 'Store Screenshot',
-      subtitle: 'Online store capture',
-      icon: ImageIcon,
-      color: '#4ECDC4',
-      bgColor: 'rgba(78, 205, 196, 0.1)',
-    },
-    {
-      id: 'voice' as InputMethod,
-      title: 'Voice Input',
-      subtitle: 'Speak your list',
-      icon: Mic,
-      color: '#FFB347',
-      bgColor: 'rgba(255, 179, 71, 0.1)',
-    },
-    {
-      id: 'manual' as InputMethod,
-      title: 'Manual Entry',
-      subtitle: 'Type your items',
-      icon: Edit,
-      color: '#A78BFA',
-      bgColor: 'rgba(167, 139, 250, 0.1)',
-    },
-  ];
 
-  const handleAddManualItem = () => {
-    setManualItems([...manualItems, '']);
+  // -----------------------------------------------
+  const host = '192.168.0.104:3000'; // IP : Port
+  // ------------------------------------------------
+
+
+  const handleProceed = async () => {
+    if (!selectedImageUri) {
+      alert('No image selected');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('receiptImage', {
+      uri: selectedImageUri,
+      type: 'image/jpeg',
+      name: 'receipt.jpg',
+    } as any);
+
+    try {
+      const response = await axios.post(`http://${host}/process`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      console.log('Image response from backend:', response.data);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Error uploading image:', error.message, error.response?.data);
+      } else {
+        console.error('Unknown error uploading image:', error);
+      }
+    }
   };
+  const handleTakePhoto = async () => {
+    console.log("Take Photo Clicked !");
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      alert('Camera permission is required!');
+      return;
+    }
 
-  const handleManualItemChange = (index: number, value: string) => {
-    const newItems = [...manualItems];
-    newItems[index] = value;
-    setManualItems(newItems);
-  };
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
 
-  const handleRemoveManualItem = (index: number) => {
-    if (manualItems.length > 1) {
-      const newItems = manualItems.filter((_, i) => i !== index);
-      setManualItems(newItems);
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      console.log(uri);
+      setSelectedImageUri(uri);
     }
   };
 
-  const renderReceiptMethod = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={styles.methodContent}>
-      <View style={styles.placeholderContainer}>
-        <View style={styles.cameraPlaceholder}>
-          <ScanLine size={48} color="#6BCF7F" />
-          <Text style={styles.placeholderTitle}>Ready to Scan</Text>
-          <Text style={styles.placeholderSubtitle}>
-            Take a photo of your receipt and we'll extract the items automatically
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.methodActions}>
-        <Button
-          title="Take Photo"
-          onPress={() => {}}
-          icon={<Camera size={20} color="#FFFFFF" />}
-          style={styles.primaryAction}
-        />
-        <Button
-          title="Upload from Gallery"
-          onPress={() => {}}
-          variant="outline"
-          icon={<Upload size={20} color="#6BCF7F" />}
-        />
-      </View>
+  const handleUploadPhoto = async () => {
+    console.log("Upload Photo Clicked !");
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      alert('Media library permission is required!');
+      return;
+    }
 
-      <View style={styles.tipsContainer}>
-        <Text style={styles.tipsTitle}>📸 Tips for better scanning:</Text>
-        <Text style={styles.tipText}>• Ensure good lighting</Text>
-        <Text style={styles.tipText}>• Keep receipt flat and straight</Text>
-        <Text style={styles.tipText}>• Include all items in frame</Text>
-      </View>
-    </Animated.View>
-  );
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
 
-  const renderScreenshotMethod = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={styles.methodContent}>
-      <View style={styles.placeholderContainer}>
-        <View style={styles.screenshotPlaceholder}>
-          <ImageIcon size={48} color="#4ECDC4" />
-          <Text style={styles.placeholderTitle}>Upload Screenshot</Text>
-          <Text style={styles.placeholderSubtitle}>
-            Share a screenshot from your online grocery shopping cart
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.methodActions}>
-        <Button
-          title="Choose Screenshot"
-          onPress={() => {}}
-          icon={<ImageIcon size={20} color="#FFFFFF" />}
-          style={[styles.primaryAction, { backgroundColor: '#4ECDC4' }]}
-        />
-      </View>
-
-      <View style={styles.exampleContainer}>
-        <Text style={styles.exampleTitle}>✨ Supported stores:</Text>
-        <View style={styles.storesList}>
-          <Text style={styles.storeItem}>Amazon Fresh</Text>
-          <Text style={styles.storeItem}>Instacart</Text>
-          <Text style={styles.storeItem}>Walmart+</Text>
-          <Text style={styles.storeItem}>Target</Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-
-  const renderVoiceMethod = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={styles.methodContent}>
-      <View style={styles.placeholderContainer}>
-        <View style={[
-          styles.voicePlaceholder,
-          isRecording && styles.voicePlaceholderActive
-        ]}>
-          <Mic size={48} color={isRecording ? "#FFFFFF" : "#FFB347"} />
-          <Text style={[
-            styles.placeholderTitle,
-            isRecording && styles.placeholderTitleActive
-          ]}>
-            {isRecording ? 'Listening...' : 'Ready to Record'}
-          </Text>
-          <Text style={[
-            styles.placeholderSubtitle,
-            isRecording && styles.placeholderSubtitleActive
-          ]}>
-            {isRecording 
-              ? 'Speak clearly and mention quantities'
-              : 'Tap the button and speak your grocery list'
-            }
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.methodActions}>
-        <Button
-          title={isRecording ? 'Stop Recording' : 'Start Recording'}
-          onPress={() => setIsRecording(!isRecording)}
-          icon={<Mic size={20} color="#FFFFFF" />}
-          style={[
-            styles.primaryAction, 
-            { backgroundColor: isRecording ? '#FF6B6B' : '#FFB347' }
-          ]}
-        />
-      </View>
-
-      <View style={styles.exampleContainer}>
-        <Text style={styles.exampleTitle}>🎤 Example phrases:</Text>
-        <Text style={styles.exampleText}>"Two liters of milk, one loaf of bread, dozen eggs"</Text>
-        <Text style={styles.exampleText}>"I need bananas, apples, and some yogurt"</Text>
-      </View>
-    </Animated.View>
-  );
-
-  const renderManualMethod = () => (
-    <Animated.View entering={FadeInDown.delay(200)} style={styles.methodContent}>
-      <ScrollView style={styles.manualInputContainer} showsVerticalScrollIndicator={false}>
-        {manualItems.map((item, index) => (
-          <View key={index} style={styles.manualInputItem}>
-            <TextInput
-              style={styles.manualInput}
-              placeholder={`Item ${index + 1}`}
-              value={item}
-              onChangeText={(value) => handleManualItemChange(index, value)}
-              placeholderTextColor="#A0AEC0"
-            />
-            {manualItems.length > 1 && (
-              <TouchableOpacity
-                style={styles.removeItemButton}
-                onPress={() => handleRemoveManualItem(index)}
-              >
-                <Text style={styles.removeItemText}>×</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
-        
-        <TouchableOpacity
-          style={styles.addItemButton}
-          onPress={handleAddManualItem}
-        >
-          <Plus size={16} color="#A78BFA" />
-          <Text style={styles.addItemText}>Add Item</Text>
-        </TouchableOpacity>
-      </ScrollView>
-      
-      <View style={styles.methodActions}>
-        <Button
-          title="Save Items"
-          onPress={() => {}}
-          icon={<Edit size={20} color="#FFFFFF" />}
-          style={[styles.primaryAction, { backgroundColor: '#A78BFA' }]}
-        />
-      </View>
-    </Animated.View>
-  );
-
-  const renderMethodContent = () => {
-    switch (activeMethod) {
-      case 'receipt':
-        return renderReceiptMethod();
-      case 'screenshot':
-        return renderScreenshotMethod();
-      case 'voice':
-        return renderVoiceMethod();
-      case 'manual':
-        return renderManualMethod();
-      default:
-        return null;
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      console.log(uri);
+      setSelectedImageUri(uri);
     }
   };
 
@@ -249,59 +96,68 @@ export default function InputScreen() {
     <SafeAreaView style={styles.container}>
       <Animated.View entering={FadeInUp.delay(200)} style={styles.header}>
         <Text style={styles.title}>Add Items</Text>
-        <Text style={styles.subtitle}>Choose your preferred input method</Text>
+        <Text style={styles.subtitle}>Enter items manually or scan a receipt</Text>
       </Animated.View>
 
-      <View style={styles.methodSelector}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.methodSelectorContent}
-        >
-          {inputMethods.map((method, index) => {
-            const IconComponent = method.icon;
-            const isActive = activeMethod === method.id;
-            
-            return (
-              <Animated.View 
-                key={method.id}
-                entering={FadeInDown.delay(100 * index)}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.methodCard,
-                    isActive && styles.methodCardActive,
-                    { borderColor: isActive ? method.color : 'transparent' }
-                  ]}
-                  onPress={() => setActiveMethod(method.id)}
-                >
-                  <View style={[
-                    styles.methodIcon,
-                    { backgroundColor: isActive ? method.color : method.bgColor }
-                  ]}>
-                    <IconComponent 
-                      size={24} 
-                      color={isActive ? '#FFFFFF' : method.color} 
-                    />
-                  </View>
-                  <Text style={[
-                    styles.methodTitle,
-                    isActive && styles.methodTitleActive
-                  ]}>
-                    {method.title}
-                  </Text>
-                  <Text style={styles.methodSubtitle}>
-                    {method.subtitle}
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {renderMethodContent()}
+        <View style={styles.methodContent}>
+          <TextInput
+            style={styles.manualInput}
+            placeholder="Type what you bought..."
+            value={manualText}
+            onChangeText={setManualText}
+            placeholderTextColor="#A0AEC0"
+          />
+          <View style={{ marginTop: 0 }}>
+            <Button
+              title="Submit Text"
+              onPress={async () => {
+                if (manualText.trim() === '') {
+                  alert('Please enter some text before proceeding.');
+                  return;
+                }
+                console.log(manualText);
+                try {
+                  const response = await axios.post(`http://${host}/process-text`, { text: manualText.trim() });
+                  console.log('Text response from backend:', response.data);
+                } catch (err) {
+                }
+              }}
+              style={styles.primaryAction}
+            />
+          </View>
+
+          <View style={styles.methodActions}>
+            <Button
+              title="Take Photo"
+              onPress={handleTakePhoto}
+              icon={<Camera size={20} color="#FFFFFF" />}
+              style={styles.primaryAction}
+            />
+            <Button
+              title="Upload Photo"
+              onPress={handleUploadPhoto}
+              variant="outline"
+              icon={<Upload size={20} color="#6BCF7F" />}
+            />
+          </View>
+          {selectedImageUri && (
+            <View style={{ alignItems: 'center', marginTop: 20 }}>
+              <Image
+                source={{ uri: selectedImageUri }}
+                style={{ width: '100%', height: 350, borderRadius: 12 }}
+                resizeMode="contain"
+              />
+              <View style={{ marginTop: 10, width: '100%' }}>
+                <Button
+                  title="Proceed"
+                  onPress={handleProceed}
+                  style={styles.primaryAction}
+                />
+              </View>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
