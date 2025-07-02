@@ -20,9 +20,10 @@ export default function InputScreen() {
 
 
   // -----------------------------------------------
-  const host = '192.168.0.104:3000'; // IP : Port
+  const host = '192.168.0.111:3000'; // IP : Port
   // ------------------------------------------------
-
+// Hardcoded user ID for testing purposes
+  const LOGGED_IN_USER_ID = 'e8a077aa-0894-495b-83c0-21f6189f4001';
 
   const handleProceed = async () => {
     if (!selectedImageUri) {
@@ -92,6 +93,45 @@ export default function InputScreen() {
     }
   };
 
+    const handleSubmitText = async () => {
+    if (manualText.trim() === '') {
+      alert('Please enter some text before proceeding.');
+      return;
+    }
+    
+    // Check if the user ID is set
+    if (!LOGGED_IN_USER_ID) {
+      alert('Error: User is not logged in.');
+      return;
+    }
+
+    console.log(`Submitting text: "${manualText}" for user: ${LOGGED_IN_USER_ID}`);
+
+    try {
+      // MODIFICATION: Send 'text' AND 'userId' in the request body
+      const response = await axios.post(`http://${host}/process-text`, { 
+        text: manualText.trim(),
+        userId: LOGGED_IN_USER_ID, // Send the user's ID
+      });
+      
+      console.log('✅ Success from backend:', response.data);
+      alert(response.data.message); // Show success message
+      setManualText(''); // Clear the input field on success
+
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        console.error('Error submitting text:', err.response?.data || err.message);
+        alert(`Error: ${err.response?.data?.error || 'Could not process request.'}`);
+      } else if (err instanceof Error) {
+        console.error('Error submitting text:', err.message);
+        alert(`Error: ${err.message}`);
+      } else {
+        console.error('Unknown error submitting text:', err);
+        alert('Error: Could not process request.');
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Animated.View entering={FadeInUp.delay(200)} style={styles.header}>
@@ -111,18 +151,22 @@ export default function InputScreen() {
           <View style={{ marginTop: 0 }}>
             <Button
               title="Submit Text"
-              onPress={async () => {
-                if (manualText.trim() === '') {
-                  alert('Please enter some text before proceeding.');
-                  return;
-                }
-                console.log(manualText);
-                try {
-                  const response = await axios.post(`http://${host}/process-text`, { text: manualText.trim() });
-                  console.log('Text response from backend:', response.data);
-                } catch (err) {
-                }
-              }}
+              onPress={
+                handleSubmitText
+              
+              //   async () => {
+              //   if (manualText.trim() === '') {
+              //     alert('Please enter some text before proceeding.');
+              //     return;
+              //   }
+              //   console.log(manualText);
+              //   try {
+              //     const response = await axios.post(`http://${host}/process-text`, { text: manualText.trim() });
+              //     console.log('Text response from backend:', response.data);
+              //   } catch (err) {
+              //   }
+              // }
+            }
               style={styles.primaryAction}
             />
           </View>
