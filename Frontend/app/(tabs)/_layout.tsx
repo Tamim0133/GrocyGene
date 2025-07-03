@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Plus, Bell, User } from 'lucide-react-native';
+import { Home, Plus, Bell, User,Package } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -39,6 +39,15 @@ export default function TabLayout() {
           ),
         }}
       />
+            <Tabs.Screen
+  name="inventory_screen_list"
+  options={{
+    title: 'Inventory',
+    tabBarIcon: ({ size, color }) => (
+      <Package size={size} color={color} />
+    ),
+  }}
+/>
       <Tabs.Screen
         name="notifications"
         options={{

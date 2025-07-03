@@ -1,25 +1,41 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, TrendingDown, ShoppingCart, CircleAlert as AlertCircle, Clock, DollarSign, ChartBar as BarChart3, ArrowRight } from 'lucide-react-native';
+import {
+  Package,
+  TrendingDown,
+  ShoppingCart,
+  CircleAlert as AlertCircle,
+  Clock,
+  DollarSign,
+  ChartBar as BarChart3,
+  ArrowRight,
+} from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressIndicator } from '@/components/ui/ProgressIndicator';
-
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'; // Import hooks
+import axios from 'axios';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
+// import { RootStackParamList } from '@/navigation/AppNavigator'; //
+const API_HOST = 'http://192.168.0.110:3000';
 interface InventoryItem {
-  id: string;
-  name: string;
+  stock_id: string;
+  products: {
+    product_name: string;
+    unit: string;
+  };
   quantity: number;
-  unit: string;
-  daysLeft: number;
-  category: string;
+  predicted_finish_date: string;
 }
 
 interface SuggestionItem {
@@ -29,67 +45,131 @@ interface SuggestionItem {
   priority: 'high' | 'medium' | 'low';
 }
 
-const mockInventoryItems: InventoryItem[] = [
-  { id: '1', name: 'Milk', quantity: 1, unit: 'liter', daysLeft: 2, category: 'Dairy' },
-  { id: '2', name: 'Bread', quantity: 1, unit: 'loaf', daysLeft: 3, category: 'Bakery' },
-  { id: '3', name: 'Eggs', quantity: 6, unit: 'pieces', daysLeft: 5, category: 'Dairy' },
-  { id: '4', name: 'Rice', quantity: 2, unit: 'kg', daysLeft: 30, category: 'Grains' },
-];
+// const mockInventoryItems: InventoryItem[] = [
+//   { id: '1', name: 'Milk', quantity: 1, unit: 'liter', daysLeft: 2, category: 'Dairy' },
+//   { id: '2', name: 'Bread', quantity: 1, unit: 'loaf', daysLeft: 3, category: 'Bakery' },
+//   { id: '3', name: 'Eggs', quantity: 6, unit: 'pieces', daysLeft: 5, category: 'Dairy' },
+//   { id: '4', name: 'Rice', quantity: 2, unit: 'kg', daysLeft: 30, category: 'Grains' },
+// ];
 
 const mockSuggestions: SuggestionItem[] = [
-  { id: '1', name: 'Bananas', reason: 'Running low based on usage', priority: 'high' },
-  { id: '2', name: 'Chicken Breast', reason: 'Weekly protein schedule', priority: 'medium' },
-  { id: '3', name: 'Yogurt', reason: 'Family preference pattern', priority: 'low' },
+  {
+    id: '1',
+    name: 'Bananas',
+    reason: 'Running low based on usage',
+    priority: 'high',
+  },
+  {
+    id: '2',
+    name: 'Chicken Breast',
+    reason: 'Weekly protein schedule',
+    priority: 'medium',
+  },
+  {
+    id: '3',
+    name: 'Yogurt',
+    reason: 'Family preference pattern',
+    priority: 'low',
+  },
 ];
 
 export default function DashboardScreen() {
-  const urgentItems = mockInventoryItems.filter(item => item.daysLeft <= 3);
-  const totalItems = mockInventoryItems.length;
+  const router = useRouter();
+
+  // const navigation = useNavigation();
+  // const route = useRoute<RouteProp<{ params: { userId: string } }, 'params'>>();
+  // const userId = route.params.userId;
+  const userId = 'e8a077aa-0894-495b-83c0-21f6189f4001'; // Hardcoded for testing
   const monthlyBudget = 500;
   const currentSpend = 320;
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return '#FF6B6B';
-      case 'medium': return '#FFB347';
-      default: return '#4ECDC4';
+      case 'high':
+        return '#FF6B6B';
+      case 'medium':
+        return '#FFB347';
+      default:
+        return '#4ECDC4';
     }
   };
 
-  const renderInventoryItem = (item: InventoryItem) => (
-    <View key={item.id} style={styles.inventoryItem}>
-      <View style={styles.inventoryItemContent}>
-        <View>
-          <Text style={styles.inventoryItemName}>{item.name}</Text>
-          <Text style={styles.inventoryItemDetails}>
-            {item.quantity} {item.unit} • {item.category}
-          </Text>
-        </View>
-        <View style={styles.inventoryItemRight}>
-          <View style={[
-            styles.daysLeftBadge,
-            { backgroundColor: item.daysLeft <= 3 ? '#FFE5E5' : '#E8F5E8' }
-          ]}>
-            <Text style={[
-              styles.daysLeftText,
-              { color: item.daysLeft <= 3 ? '#FF6B6B' : '#52C41A' }
-            ]}>
-              {item.daysLeft}d
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(
+          `${API_HOST}/api/users/${userId}/stocks`
+        );
+        setInventory(response.data);
+      } catch (e) {
+        console.error('Failed to fetch dashboard data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, [userId]);
+
+  const urgentItems = inventory.filter((item) => {
+    const daysLeft =
+      (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
+      (1000 * 3600 * 24);
+    return daysLeft <= 3;
+  });
+  const totalItems = inventory.length;
+
+  const renderInventoryItem = (item: InventoryItem) => {
+    const daysLeft = Math.ceil(
+      (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
+        (1000 * 3600 * 24)
+    );
+    return (
+      <View key={item.stock_id} style={styles.inventoryItem}>
+        <View style={styles.inventoryItemContent}>
+          <View>
+            <Text style={styles.inventoryItemName}>
+              {item.products.product_name}
             </Text>
+            <Text style={styles.inventoryItemDetails}>
+              {item.quantity} {item.products.unit}
+            </Text>
+          </View>
+          <View style={styles.inventoryItemRight}>
+            <View
+              style={[
+                styles.daysLeftBadge,
+                { backgroundColor: daysLeft <= 3 ? '#FFE5E5' : '#E8F5E8' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.daysLeftText,
+                  { color: daysLeft <= 3 ? '#FF6B6B' : '#52C41A' },
+                ]}
+              >
+                {daysLeft > 0 ? `${daysLeft}d` : 'Due'}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderSuggestion = (suggestion: SuggestionItem) => (
     <TouchableOpacity key={suggestion.id} style={styles.suggestionItem}>
       <View style={styles.suggestionContent}>
         <View style={styles.suggestionLeft}>
-          <View style={[
-            styles.priorityDot,
-            { backgroundColor: getPriorityColor(suggestion.priority) }
-          ]} />
+          <View
+            style={[
+              styles.priorityDot,
+              { backgroundColor: getPriorityColor(suggestion.priority) },
+            ]}
+          />
           <View>
             <Text style={styles.suggestionName}>{suggestion.name}</Text>
             <Text style={styles.suggestionReason}>{suggestion.reason}</Text>
@@ -121,8 +201,8 @@ export default function DashboardScreen() {
 
         <View style={styles.content}>
           {/* Stats Cards */}
-          <Animated.View 
-            entering={FadeInDown.delay(300)} 
+          <Animated.View
+            entering={FadeInDown.delay(300)}
             style={styles.statsContainer}
           >
             <Card style={styles.statCard} variant="glass">
@@ -131,19 +211,32 @@ export default function DashboardScreen() {
                   <Package size={24} color="#6BCF7F" />
                 </View>
                 <View>
-                  <Text style={styles.statValue}>{totalItems}</Text>
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#6BCF7F" />
+                  ) : (
+                    <Text style={styles.statValue}>{totalItems}</Text>
+                  )}
                   <Text style={styles.statLabel}>Items in Stock</Text>
                 </View>
               </View>
             </Card>
-            
+
             <Card style={styles.statCard} variant="glass">
               <View style={styles.statContent}>
-                <View style={[styles.statIconContainer, { backgroundColor: '#FFE5E5' }]}>
+                <View
+                  style={[
+                    styles.statIconContainer,
+                    { backgroundColor: '#FFE5E5' },
+                  ]}
+                >
                   <AlertCircle size={24} color="#FF6B6B" />
                 </View>
                 <View>
-                  <Text style={styles.statValue}>{urgentItems.length}</Text>
+                  {loading ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Text style={styles.statValue}>{urgentItems.length}</Text>
+                  )}
                   <Text style={styles.statLabel}>Running Low</Text>
                 </View>
               </View>
@@ -169,8 +262,8 @@ export default function DashboardScreen() {
                   <Text style={styles.budgetSpent}>${currentSpend}</Text>
                   <Text style={styles.budgetTotal}>of ${monthlyBudget}</Text>
                 </View>
-                <ProgressIndicator 
-                  progress={currentSpend} 
+                <ProgressIndicator
+                  progress={currentSpend}
                   total={monthlyBudget}
                   color="#6BCF7F"
                 />
@@ -185,19 +278,21 @@ export default function DashboardScreen() {
           <Animated.View entering={FadeInDown.delay(500)}>
             <Card style={styles.inventoryCard}>
               <View style={styles.cardHeader}>
-                <View style={styles.cardTitleContainer}>
-                  <View style={styles.inventoryIconContainer}>
-                    <Package size={20} color="#6BCF7F" />
-                  </View>
-                  <Text style={styles.cardTitle}>Your Inventory</Text>
-                </View>
-                <TouchableOpacity style={styles.viewAllButton}>
+                {/* ... */}
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={() => router.push({ pathname: './inventory_screen_list', params: { userId } })}
+                >
                   <Text style={styles.viewAllText}>View All</Text>
                   <ArrowRight size={16} color="#6BCF7F" />
                 </TouchableOpacity>
               </View>
               <View style={styles.inventoryList}>
-                {mockInventoryItems.slice(0, 4).map(renderInventoryItem)}
+                {loading ? (
+                  <ActivityIndicator style={{ marginTop: 20 }} />
+                ) : (
+                  inventory.slice(0, 4).map(renderInventoryItem)
+                )}
               </View>
             </Card>
           </Animated.View>

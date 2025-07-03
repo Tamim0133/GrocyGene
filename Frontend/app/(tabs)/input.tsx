@@ -20,7 +20,7 @@ export default function InputScreen() {
 
 
   // -----------------------------------------------
-  const host = '192.168.0.111:3000'; // IP : Port
+  const host = '192.168.0.110:3000'; // IP : Port
   // ------------------------------------------------
 // Hardcoded user ID for testing purposes
   const LOGGED_IN_USER_ID = 'e8a077aa-0894-495b-83c0-21f6189f4001';

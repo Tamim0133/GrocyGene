@@ -287,8 +287,25 @@ app.delete('/api/products/:id', async (req, res) => {
 // --- USER_STOCKS TABLE ---
 // Get all stocks for a specific user
 app.get('/api/users/:userId/stocks', async (req, res) => {
-    const { data, error } = await supabase.from('user_stocks').select('*').eq('user_id', req.params.userId);
+    const { userId } = req.params;
+
+    const { data, error } = await supabase
+        .from('user_stocks')
+        // This is the magic part! It selects all columns from user_stocks (*)
+        // and from the related 'products' table, it pulls 'product_name' and 'unit'.
+        .select(`
+            *,
+            products (
+                product_name,
+                unit
+            )
+        `)
+        .eq('user_id', userId);
+
     if (error) return res.status(500).json({ error: error.message });
+
+    // The data will now look like:
+    // [ { stock_id: '...', quantity: 2, ..., products: { product_name: 'Rice', unit: 'kg' } }, ... ]
     res.json(data);
 });
 
@@ -452,7 +469,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.111";
+const IP = "192.168.0.110";
 app.listen(port, IP, () => {
     console.log(`🚀 Server running on ${IP}:${port}`);
 });
