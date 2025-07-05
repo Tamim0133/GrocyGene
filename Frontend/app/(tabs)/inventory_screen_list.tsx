@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { useLocalSearchParams } from 'expo-router';
 
 // Define your API host
-const API_HOST = 'http://192.168.0.110:3000';
+const API_HOST = 'http://192.168.0.111:3000';
 
 interface StockItem {
   stock_id: string;
@@ -34,8 +34,12 @@ interface StockItem {
 // type InventoryListRouteProp = RouteProp<RootStackParamList, 'InventoryList'>;
 
 export default function InventoryListScreen() {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
-
+  const params = useLocalSearchParams<{ userId?: string }>();
+  const userId = params.userId || 'e8a077aa-0894-495b-83c0-21f6189f4001';
+  if (!userId) {
+    console.error('User ID is not provided');
+    return null; // or handle the error appropriately
+  }
   const [inventory, setInventory] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +48,7 @@ export default function InventoryListScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [newDate, setNewDate] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchInventory = async () => {
     try {
@@ -58,6 +63,22 @@ export default function InventoryListScreen() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await axios.get(
+        `${API_HOST}/api/users/${userId}/stocks`
+      );
+      setInventory(response.data);
+      setError(null);
+    } catch (e) {
+      setError('Failed to fetch inventory.');
+      console.error(e);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -156,6 +177,8 @@ export default function InventoryListScreen() {
             </View>
           </View>
         )}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
 
       {/* Edit Modal */}
@@ -251,3 +274,4 @@ const styles = StyleSheet.create({
   },
   closeButton: { position: 'absolute', top: 15, right: 15 },
 });
+
