@@ -1,4 +1,7 @@
 import React, { useState, useEffect, use } from 'react';
+import { ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+
 import {
   View,
   Text,
@@ -18,7 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { useLocalSearchParams } from 'expo-router';
 
 // Define your API host
-const API_HOST = 'http://192.168.0.111:3000';
+const API_HOST = 'http://192.168.0.101:3000';
 
 interface StockItem {
   stock_id: string;
@@ -34,12 +37,13 @@ interface StockItem {
 // type InventoryListRouteProp = RouteProp<RootStackParamList, 'InventoryList'>;
 
 export default function InventoryListScreen() {
+
+  const router = useRouter();
   const params = useLocalSearchParams<{ userId?: string }>();
-  const userId = params.userId || 'e8a077aa-0894-495b-83c0-21f6189f4001';
-  if (!userId) {
-    console.error('User ID is not provided');
-    return null; // or handle the error appropriately
-  }
+  const userId = params.userId;
+
+  console.log(userId);
+
   const [inventory, setInventory] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +53,8 @@ export default function InventoryListScreen() {
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [newDate, setNewDate] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+
+
 
   const fetchInventory = async () => {
     try {
@@ -143,8 +149,14 @@ export default function InventoryListScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Full Inventory</Text>
+        <TouchableOpacity onPress={() => router.push('/(tabs)')} style={styles.backButton}>
+          <ArrowLeft size={22} color="#2D3748" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Full Inventory</Text>
+        <View style={{ width: 24 }} /> {/* Keeps center title even if there's no right icon */}
       </View>
+
 
       <FlatList
         data={inventory}
@@ -208,54 +220,110 @@ export default function InventoryListScreen() {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
-  // Add all your styles here...
-  container: { flex: 1, backgroundColor: '#F8FBFF' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { paddingHorizontal: 24, paddingVertical: 20 },
-  title: { fontSize: 32, fontFamily: 'Inter-Bold', color: '#2D3748' },
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FBFF',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: '#F8FBFF',
+    borderBottomWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  backButton: {
+    padding: 6,
+    backgroundColor: '#E4FCEC',
+    borderRadius: 10,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    color: '#2D3748',
+  },
   itemContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     marginHorizontal: 24,
     marginBottom: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  itemName: { fontSize: 18, fontFamily: 'Inter-SemiBold', color: '#2D3748' },
+  itemName: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: '#2D3748',
+  },
   itemDetails: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: '#718096',
     marginTop: 4,
   },
-  actions: { flexDirection: 'row', gap: 15 },
-  actionButton: { padding: 5 },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionButton: {
+    backgroundColor: '#F1F5F9',
+    padding: 8,
+    borderRadius: 10,
+    elevation: 1,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalContent: {
     width: '85%',
-    backgroundColor: 'white',
-    padding: 25,
+    backgroundColor: '#FFFFFF',
+    padding: 28,
     borderRadius: 20,
     elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    padding: 5,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 20,
   },
   modalTitle: {
     fontSize: 22,
     fontFamily: 'Inter-Bold',
-    marginBottom: 10,
     textAlign: 'center',
+    color: '#2D3748',
+    marginBottom: 12,
   },
   modalItemName: {
     fontSize: 16,
@@ -266,12 +334,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 15,
-    borderRadius: 10,
+    borderColor: '#CBD5E0',
+    padding: 14,
+    borderRadius: 12,
     fontSize: 16,
+    fontFamily: 'Inter-Regular',
     marginBottom: 20,
+    backgroundColor: '#F9FAFB',
   },
-  closeButton: { position: 'absolute', top: 15, right: 15 },
 });
+
 

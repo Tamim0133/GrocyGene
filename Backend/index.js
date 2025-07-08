@@ -46,9 +46,9 @@ app.post('/process-text', async (req, res) => {
         console.log(`Received text: "${text}" for user: ${userId}`);
 
         // --- Step 1: Get structured data from AI (Same as before) ---
-        
 
-            const prompt = `You will be given a shopping list in either Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the text and return it in JSON format as shown below:
+
+        const prompt = `You will be given a shopping list in either Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the text and return it in JSON format as shown below:
 
                             [
                             { "name": "Product A", "quantity": "1", "price": "100" },
@@ -67,12 +67,12 @@ app.post('/process-text', async (req, res) => {
                             Now process the following text:
                             ${req.body.text}`
 
-            const result = await textModel.generateContent(prompt);
-            let response = await result.response.text();
-            response = response.replace(/```json|```/g, '').trim();
-            const parsedItems = JSON.parse(response);
+        const result = await textModel.generateContent(prompt);
+        let response = await result.response.text();
+        response = response.replace(/```json|```/g, '').trim();
+        const parsedItems = JSON.parse(response);
 
-            console.log("✅ Clean JSON result from AI:", parsedItems);
+        console.log("✅ Clean JSON result from AI:", parsedItems);
 
         // --- Step 2: Prepare the data for the 'user_stocks' table ---
         // This is the new, crucial logic
@@ -469,7 +469,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.111";
+const IP = "192.168.0.101";
 app.listen(port, IP, () => {
     console.log(`🚀 Server running on ${IP}:${port}`);
 });

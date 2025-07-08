@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import {
   View,
@@ -27,7 +28,7 @@ import axios from 'axios';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 // import { RootStackParamList } from '@/navigation/AppNavigator'; //
-const API_HOST = 'http://192.168.0.111:3000';
+const API_HOST = 'http://192.168.0.101:3000';
 interface InventoryItem {
   stock_id: string;
   products: {
@@ -79,6 +80,7 @@ export default function DashboardScreen() {
   // const navigation = useNavigation();
   // const route = useRoute<RouteProp<{ params: { userId: string } }, 'params'>>();
   // const userId = route.params.userId;
+
   const userId = 'e8a077aa-0894-495b-83c0-21f6189f4001'; // Hardcoded for testing
   const monthlyBudget = 500;
   const currentSpend = 320;
@@ -125,7 +127,7 @@ export default function DashboardScreen() {
   const renderInventoryItem = (item: InventoryItem) => {
     const daysLeft = Math.ceil(
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
-        (1000 * 3600 * 24)
+      (1000 * 3600 * 24)
     );
     return (
       <View key={item.stock_id} style={styles.inventoryItem}>
@@ -193,9 +195,14 @@ export default function DashboardScreen() {
             <Text style={styles.subtitle}>Here's your grocery overview</Text>
           </View>
           <TouchableOpacity style={styles.profileButton}>
-            <View style={styles.profileAvatar}>
+            <LinearGradient
+              colors={['#6BCF7F', '#4ECDC4']}
+              style={styles.profileAvatar}
+            >
               <Text style={styles.profileText}>JD</Text>
-            </View>
+            </LinearGradient>
+
+
           </TouchableOpacity>
         </Animated.View>
 
@@ -278,15 +285,27 @@ export default function DashboardScreen() {
           <Animated.View entering={FadeInDown.delay(500)}>
             <Card style={styles.inventoryCard}>
               <View style={styles.cardHeader}>
-                {/* ... */}
+                <View style={styles.cardTitleContainer}>
+                  <View style={styles.inventoryIconContainer}>
+                    <Package size={20} color="#4ECDC4" />
+                  </View>
+                  <Text style={styles.cardTitle}>Inventory</Text>
+                </View>
+
+
                 <TouchableOpacity
                   style={styles.viewAllButton}
-                  onPress={() => router.push({ pathname: './inventory_screen_list', params: { userId } })}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({ pathname: './inventory_screen_list', params: { userId } })
+                  }
                 >
                   <Text style={styles.viewAllText}>View All</Text>
                   <ArrowRight size={16} color="#6BCF7F" />
                 </TouchableOpacity>
               </View>
+
+
               <View style={styles.inventoryList}>
                 {loading ? (
                   <ActivityIndicator style={{ marginTop: 20 }} />
@@ -316,7 +335,10 @@ export default function DashboardScreen() {
               </View>
               <Button
                 title="Shop Suggestions"
-                onPress={() => {}}
+                onPress={() => {
+                  router.push({ pathname: './shopSuggestions', params: { userId } })
+
+                }}
                 variant="outline"
                 icon={<ShoppingCart size={16} color="#6BCF7F" />}
                 style={styles.shopButton}
@@ -325,14 +347,14 @@ export default function DashboardScreen() {
           </Animated.View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FBFF',
+    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -345,12 +367,12 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontFamily: 'Inter-Bold',
-    color: '#2D3748',
+    color: '#1F2937',
   },
   subtitle: {
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#718096',
+    color: '#6B7280',
     marginTop: 4,
   },
   profileButton: {
@@ -378,6 +400,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 20,
     paddingBottom: 40,
+
+    backgroundColor: '#FDFEFF',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -389,6 +413,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(107, 207, 127, 0.1)',
+
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+    borderRadius: 16,
+
   },
   statContent: {
     flexDirection: 'row',
@@ -406,12 +438,12 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontFamily: 'Inter-Bold',
-    color: '#2D3748',
+    color: '#1F2937',
   },
   statLabel: {
     fontSize: 13,
     fontFamily: 'Inter-Medium',
-    color: '#718096',
+    color: '#6B7280',
     marginTop: 2,
   },
   budgetCard: {
@@ -422,6 +454,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 24,
     elevation: 8,
+
+    borderRadius: 16,
+
   },
   cardHeader: {
     flexDirection: 'row',
@@ -445,7 +480,8 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
-    color: '#2D3748',
+    color: '#1F2937',
+
   },
   chartButton: {
     padding: 8,
@@ -463,21 +499,28 @@ const styles = StyleSheet.create({
   budgetSpent: {
     fontSize: 32,
     fontFamily: 'Inter-Bold',
-    color: '#2D3748',
+    color: '#1F2937',
   },
   budgetTotal: {
     fontSize: 18,
     fontFamily: 'Inter-Regular',
-    color: '#718096',
+    color: '#6B7280',
   },
   budgetRemaining: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#718096',
+    color: '#6B7280',
   },
   inventoryCard: {
     padding: 24,
     backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+    borderRadius: 16,
+
   },
   inventoryIconContainer: {
     width: 40,
@@ -490,16 +533,23 @@ const styles = StyleSheet.create({
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#E6F9ED',
+    shadowColor: '#6BCF7F',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
+
   viewAllText: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: '#6BCF7F',
+    marginRight: 4, // spacing before the arrow
+
   },
   inventoryList: {
     gap: 16,
@@ -515,12 +565,12 @@ const styles = StyleSheet.create({
   inventoryItemName: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: '#2D3748',
+    color: '#1F2937',
   },
   inventoryItemDetails: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#718096',
+    color: '#6B7280',
     marginTop: 4,
   },
   inventoryItemRight: {
@@ -538,6 +588,13 @@ const styles = StyleSheet.create({
   suggestionsCard: {
     padding: 24,
     backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+    borderRadius: 16,
+
   },
   suggestionsIconContainer: {
     width: 40,
@@ -573,12 +630,12 @@ const styles = StyleSheet.create({
   suggestionName: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
-    color: '#2D3748',
+    color: '#1F2937',
   },
   suggestionReason: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#718096',
+    color: '#6B7280',
     marginTop: 2,
   },
   suggestionActions: {
