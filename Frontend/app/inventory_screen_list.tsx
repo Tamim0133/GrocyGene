@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { useLocalSearchParams } from 'expo-router';
 
 // Define your API host
-const API_HOST = 'http://192.168.0.101:3000';
+const API_HOST = 'http://192.168.0.114:3000';
 
 interface StockItem {
   stock_id: string;
@@ -139,11 +139,19 @@ export default function InventoryListScreen() {
   };
 
   if (loading) {
-    return <ActivityIndicator size="large" style={styles.centered} />;
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#4A90E2" />
+      </View>
+    );
   }
 
   if (error) {
-    return <Text style={styles.centered}>{error}</Text>;
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
   }
 
   return (
@@ -154,16 +162,15 @@ export default function InventoryListScreen() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Full Inventory</Text>
-        <View style={{ width: 24 }} /> {/* Keeps center title even if there's no right icon */}
+        <View style={{ width: 24 }}>{/* Spacer */}</View>
       </View>
-
 
       <FlatList
         data={inventory}
         keyExtractor={(item) => item.stock_id}
         renderItem={({ item }) => (
           <View style={styles.itemContainer}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.itemName}>{item.products.product_name}</Text>
               <Text style={styles.itemDetails}>
                 Quantity: {item.quantity} {item.products.unit}
@@ -205,7 +212,7 @@ export default function InventoryListScreen() {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Edit Depletion Date</Text>
             <Text style={styles.modalItemName}>
-              {selectedItem?.products.product_name}
+              {selectedItem?.products.product_name || 'Unknown Product'}
             </Text>
             <TextInput
               style={styles.input}
@@ -220,6 +227,7 @@ export default function InventoryListScreen() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -229,6 +237,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#FF6B6B',
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -285,7 +298,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   actionButton: {
     backgroundColor: '#F1F5F9',
@@ -342,6 +355,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: '#F9FAFB',
   },
+  buttonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
 });
-
-

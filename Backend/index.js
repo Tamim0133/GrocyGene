@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js"; // 1. Import Supabase
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
@@ -219,6 +220,208 @@ app.post('/process', upload.single('receiptImage'), async (req, res) => {
 // =======================================================
 // DATABASE CRUD ENDPOINTS (NEW SECTION)
 // =======================================================
+
+// Add these routes to your existing index.js file
+
+// Authentication endpoints
+
+app.post('/api/auth/send-otp', async (req, res) => {
+  const { email } = req.body;
+  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+
+  try {
+    await supabase.from('email_otps').insert([{ email, otp, expires_at: expiresAt }]);
+
+   // Looking to send emails in production? Check out our Email API/SMTP product!
+
+
+    await transporter.sendMail({
+      from: '"Your App" <noreply@yourapp.com>',
+      to: email,
+      subject: 'Your OTP Code',
+      text: `Your OTP is ${otp}. It will expire in 10 minutes.`
+    });
+
+    res.status(200).json({ message: 'OTP sent successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send OTP' });
+  }
+});
+
+app.post('/api/auth/signup', async (req, res) => {
+    try {
+        const { email, password, name } = req.body;
+        
+        if (!email || !password || !name) {
+            return res.status(400).json({ error: 'Email, password, and name are required' });
+        }
+
+        // Sign up user with Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    user_name: name,
+                }
+            }
+        });
+
+        if (authError) {
+            return res.status(400).json({ error: authError.message });
+        }
+
+        // Create user record in your users table
+        if (authData.user) {
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .insert([{
+                    user_id: authData.user.id,
+                    email: authData.user.email,
+                    user_name: name,
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (userError) {
+                console.error('Error creating user record:', userError);
+                // Continue anyway, as the auth user was created successfully
+            }
+        }
+
+        res.status(201).json({
+            message: 'User created successfully. Please check your email for verification.',
+            user: authData.user,
+            session: authData.session
+        });
+
+    } catch (error) {
+        console.error('Signup error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+
+  const { data, error } = await supabase
+    .from('email_otps')
+    .select('*')
+    .eq('email', email)
+    .eq('otp', otp)
+    .eq('verified', false)
+    .gt('expires_at', new Date().toISOString()) // changed from .lt to .gt
+    .maybeSingle();
+
+  if (error || !data) {
+    console.log('OTP verification error:', error);
+    console.log("Data found:", data);
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+
+  await supabase
+    .from('email_otps')
+    .update({ verified: true })
+    .eq('id', data.id);
+
+  res.status(200).json({ message: 'OTP verified successfully' });
+});
+
+
+app.post('/api/auth/signin', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        res.status(200).json({
+            message: 'Signed in successfully',
+            user: data.user,
+            session: data.session
+        });
+
+    } catch (error) {
+        console.error('Signin error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'jannatul-2021011184@cs.du.ac.bd',
+    pass: 'mlvgfnpjjkfzcujy', // the 16-char Google app password
+  },
+});
+
+
+app.post('/api/auth/resend-otp', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    // Invalidate previous OTPs
+    await supabase
+      .from('email_otps')
+      .update({ verified: false, expires_at: new Date().toISOString() }) // expire them
+      .eq('email', email)
+      .eq('verified', false);
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store new OTP in DB
+    await supabase.from('email_otps').insert([{ email, otp, expires_at: expiresAt }]);
+
+    // Send email
+    await transporter.sendMail({
+      from: '"Your App" <noreply@yourapp.com>',
+      to: email,
+      subject: 'Your new OTP code',
+      text: `Your OTP is ${otp}. It will expire in 10 minutes.`
+    });
+
+    res.status(200).json({ message: 'OTP resent successfully' });
+
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/auth/signout', async (req, res) => {
+    try {
+        const { error } = await supabase.auth.signOut();
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        res.status(200).json({ message: 'Signed out successfully' });
+
+    } catch (error) {
+        console.error('Signout error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 /// --- USERS TABLE ---
 app.get('/api/users', async (req, res) => {
@@ -469,7 +672,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.101";
+const IP = "192.168.0.114";
 app.listen(port, IP, () => {
     console.log(`🚀 Server running on ${IP}:${port}`);
 });

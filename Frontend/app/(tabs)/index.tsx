@@ -28,7 +28,7 @@ import axios from 'axios';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 // import { RootStackParamList } from '@/navigation/AppNavigator'; //
-const API_HOST = 'http://192.168.0.101:3000';
+const API_HOST = 'http://192.168.0.114:3000';
 interface InventoryItem {
   stock_id: string;
   products: {

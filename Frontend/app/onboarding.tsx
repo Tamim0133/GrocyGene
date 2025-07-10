@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   View,
@@ -7,13 +8,26 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Mail, Phone, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import AuthService from '../services/authService'; // Updated import path
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+// Helper function to handle errors
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'An unexpected error occurred';
+};
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
@@ -25,27 +39,95 @@ export default function OnboardingScreen() {
     otp: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleNextStep = () => {
-    if (step === 1) {
-      if (!formData.name || !formData.email || !formData.password) {
-        Alert.alert('Error', 'Please fill in all fields');
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      if (!formData.otp || formData.otp.length !== 6) {
-        Alert.alert('Error', 'Please enter a valid 6-digit OTP');
-        return;
-      }
-      router.push('/profile-setup');
-    }
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   };
+
+  const validatePassword = (password: string | any[]) => {
+    return password.length >= 6;
+  };
+
+  const handleNextStep = async () => {
+    if (step === 1) {
+      // Validate form data
+      if (!formData.name.trim()) {
+        Alert.alert('Error', 'Please enter your full name');
+        return;
+      }
+      if (!formData.email.trim()) {
+        Alert.alert('Error', 'Please enter your email address');
+        return;
+      }
+      if (!validateEmail(formData.email)) {
+        Alert.alert('Error', 'Please enter a valid email address');
+        return;
+      }
+      if (!formData.password) {
+        Alert.alert('Error', 'Please enter a password');
+        return;
+      }
+      if (!validatePassword(formData.password)) {
+        Alert.alert('Error', 'Password must be at least 6 characters long');
+        return;
+      }
+
+      setLoading(true);
+      try {
+
+      await AuthService.sendOTP(formData.email);
+      Alert.alert('OTP Sent', 'Check your email for the 6-digit OTP', [
+        { text: 'OK', onPress: () => setStep(2) },
+      ]);
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  } else if (step === 2) {
+    // STEP 2: Validate OTP and complete signup
+    if (!formData.otp || formData.otp.length !== 6) {
+      return Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+    }
+
+    setLoading(true);
+    try {
+
+      await AuthService.verifyOTP(formData.email, formData.otp);
+
+        await AuthService.signUp(formData.email, formData.password, formData.name);
+        Alert.alert(
+          'Success', 
+          'Account created successfully!.',
+          [{ text: 'OK', onPress: () => router.push('/profile-setup') }]
+        );
+      } catch (error) {
+        const errorMessage = getErrorMessage(error);
+        Alert.alert('Error', errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    } 
+  };
+
+const handleResendOTP = async () => {
+  setLoading(true);
+  try {
+    await AuthService.sendOTP(formData.email);
+    Alert.alert('Success', 'A new OTP has been sent to your email');
+  } catch (error) {
+    Alert.alert('Error', getErrorMessage(error));
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderStepOne = () => (
     <Animated.View entering={FadeInUp.delay(200)} style={styles.stepContainer}>
@@ -64,6 +146,7 @@ export default function OnboardingScreen() {
             value={formData.name}
             onChangeText={(value) => handleInputChange('name', value)}
             placeholderTextColor="#A0AEC0"
+            editable={!loading}
           />
         </View>
 
@@ -79,6 +162,7 @@ export default function OnboardingScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#A0AEC0"
+              editable={!loading}
             />
           </View>
         </View>
@@ -94,10 +178,12 @@ export default function OnboardingScreen() {
               onChangeText={(value) => handleInputChange('password', value)}
               secureTextEntry={!showPassword}
               placeholderTextColor="#A0AEC0"
+              editable={!loading}
             />
             <TouchableOpacity
               style={styles.eyeIcon}
               onPress={() => setShowPassword(!showPassword)}
+              disabled={loading}
             >
               {showPassword ? (
                 <EyeOff size={20} color="#A0AEC0" />
@@ -132,9 +218,16 @@ export default function OnboardingScreen() {
           maxLength={6}
           textAlign="center"
           placeholderTextColor="#A0AEC0"
+          editable={!loading}
         />
-        <TouchableOpacity style={styles.resendButton}>
-          <Text style={styles.resendText}>Didn't receive code? Resend</Text>
+        <TouchableOpacity 
+          style={styles.resendButton} 
+          onPress={handleResendOTP}
+          disabled={loading}
+        >
+          <Text style={styles.resendText}>
+            {loading ? 'Sending...' : "Didn't receive code? Resend"}
+          </Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -159,19 +252,27 @@ export default function OnboardingScreen() {
 
         <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
           <AnimatedTouchableOpacity
-            style={styles.nextButton}
+            style={[styles.nextButton, loading && styles.disabledButton]}
             onPress={handleNextStep}
+            disabled={loading}
           >
-            <Text style={styles.nextButtonText}>
-              {step === 1 ? 'Send OTP' : 'Get Started'}
-            </Text>
-            <ArrowRight size={20} color="#FFFFFF" />
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Text style={styles.nextButtonText}>
+                  {step === 1 ? 'Send OTP' : 'Get Started'}
+                </Text>
+                <ArrowRight size={20} color="#FFFFFF" />
+              </>
+            )}
           </AnimatedTouchableOpacity>
 
           {step === 1 && (
             <TouchableOpacity
               style={styles.loginLink}
               onPress={() => router.push('/login')}
+              disabled={loading}
             >
               <Text style={styles.loginLinkText}>
                 Already have an account? <Text style={styles.loginLinkBold}>Sign In</Text>
@@ -184,6 +285,7 @@ export default function OnboardingScreen() {
   );
 }
 
+// Your existing styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -350,5 +452,8 @@ const styles = StyleSheet.create({
   loginLinkBold: {
     color: '#6BCF7F',
     fontFamily: 'Inter-SemiBold',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
