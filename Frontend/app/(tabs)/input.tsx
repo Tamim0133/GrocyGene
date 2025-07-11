@@ -134,6 +134,11 @@ export default function InputScreen() {
       alert(response.data.message); // Show success message
       setManualText(''); // Clear the input field on success
 
+      // userId,
+      // response.data
+      //Shahriar Kabir
+
+
     } catch (err) {
       if (axios.isAxiosError(err)) {
         console.error('Error submitting text:', err.response?.data || err.message);
