@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -23,12 +24,13 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressIndicator } from '@/components/ui/ProgressIndicator';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'; // Import hooks
 import axios from 'axios';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-// import { RootStackParamList } from '@/navigation/AppNavigator'; //
+import authService from '@/services/authService';
+
 const API_HOST = 'http://192.168.0.108:3000';
+
 interface InventoryItem {
   stock_id: string;
   products: {
@@ -45,13 +47,6 @@ interface SuggestionItem {
   reason: string;
   priority: 'high' | 'medium' | 'low';
 }
-
-// const mockInventoryItems: InventoryItem[] = [
-//   { id: '1', name: 'Milk', quantity: 1, unit: 'liter', daysLeft: 2, category: 'Dairy' },
-//   { id: '2', name: 'Bread', quantity: 1, unit: 'loaf', daysLeft: 3, category: 'Bakery' },
-//   { id: '3', name: 'Eggs', quantity: 6, unit: 'pieces', daysLeft: 5, category: 'Dairy' },
-//   { id: '4', name: 'Rice', quantity: 2, unit: 'kg', daysLeft: 30, category: 'Grains' },
-// ];
 
 const mockSuggestions: SuggestionItem[] = [
   {
@@ -76,14 +71,76 @@ const mockSuggestions: SuggestionItem[] = [
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // const navigation = useNavigation();
-  // const route = useRoute<RouteProp<{ params: { userId: string } }, 'params'>>();
-  // const userId = route.params.userId;
-
-  const userId = 'e8a077aa-0894-495b-83c0-21f6189f4001'; // Hardcoded for testing
   const monthlyBudget = 500;
   const currentSpend = 320;
+
+  // Fetch user ID
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const id = await authService.getUserId();
+        console.log('User ID fetched:', id);
+        setUserId(id);
+      } catch (error) {
+        console.error('Error fetching user ID:', error);
+        setError('Failed to get user information');
+      }
+    };
+    fetchUserId();
+  }, []);
+
+  // Fetch dashboard data when userId is available
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!userId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('Fetching dashboard data for user:', userId);
+        
+        const response = await axios.get(
+          `${API_HOST}/api/users/${userId}/stocks`,
+          {
+            timeout: 10000, // 10 second timeout
+          }
+        );
+        
+        console.log('Dashboard data fetched successfully:', response.data?.length || 0, 'items');
+        setInventory(response.data || []);
+        
+      } catch (e) {
+        console.error('Failed to fetch dashboard data:', e);
+        
+        if (axios.isAxiosError(e)) {
+          if (e.response?.status === 404) {
+            setError('User not found');
+          } else if (e.response?.status === 500) {
+            setError('Server error. Please try again later.');
+          } else if (e.code === 'ECONNABORTED') {
+            setError('Request timeout. Please check your connection.');
+          } else {
+            setError(`Network error: ${e.message}`);
+          }
+        } else {
+          setError('An unexpected error occurred');
+        }
+        
+        // Set empty inventory on error
+        setInventory([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [userId]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -96,39 +153,31 @@ export default function DashboardScreen() {
     }
   };
 
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(
-          `${API_HOST}/api/users/${userId}/stocks`
-        );
-        setInventory(response.data);
-      } catch (e) {
-        console.error('Failed to fetch dashboard data:', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboardData();
-  }, [userId]);
-
   const urgentItems = inventory.filter((item) => {
     const daysLeft =
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
       (1000 * 3600 * 24);
     return daysLeft <= 3;
   });
+
   const totalItems = inventory.length;
+
+  const handleViewAllInventory = () => {
+    if (!userId) {
+      Alert.alert('Error', 'User information not available');
+      return;
+    }
+    
+    // Use the correct route name and pass userId as a query parameter
+    router.push(`/inventory-list?userId=${userId}`);
+  };
 
   const renderInventoryItem = (item: InventoryItem) => {
     const daysLeft = Math.ceil(
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
       (1000 * 3600 * 24)
     );
+    
     return (
       <View key={item.stock_id} style={styles.inventoryItem}>
         <View style={styles.inventoryItemContent}>
@@ -186,6 +235,28 @@ export default function DashboardScreen() {
     </TouchableOpacity>
   );
 
+  // Show error state
+  if (error && !loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              setLoading(true);
+              // Trigger refetch by updating userId
+              setUserId(prev => prev);
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -201,8 +272,6 @@ export default function DashboardScreen() {
             >
               <Text style={styles.profileText}>JD</Text>
             </LinearGradient>
-
-
           </TouchableOpacity>
         </Animated.View>
 
@@ -291,26 +360,22 @@ export default function DashboardScreen() {
                   </View>
                   <Text style={styles.cardTitle}>Inventory</Text>
                 </View>
-
-
                 <TouchableOpacity
                   style={styles.viewAllButton}
                   activeOpacity={0.8}
-                  onPress={() =>
-                    router.push({ pathname: './inventory_screen_list', params: { userId } })
-                  }
+                  onPress={handleViewAllInventory}
                 >
                   <Text style={styles.viewAllText}>View All</Text>
                   <ArrowRight size={16} color="#6BCF7F" />
                 </TouchableOpacity>
               </View>
-
-
               <View style={styles.inventoryList}>
                 {loading ? (
                   <ActivityIndicator style={{ marginTop: 20 }} />
-                ) : (
+                ) : inventory.length > 0 ? (
                   inventory.slice(0, 4).map(renderInventoryItem)
+                ) : (
+                  <Text style={styles.emptyText}>No inventory items found</Text>
                 )}
               </View>
             </Card>
@@ -336,8 +401,9 @@ export default function DashboardScreen() {
               <Button
                 title="Shop Suggestions"
                 onPress={() => {
-                  router.push({ pathname: './shopSuggestions', params: { userId } })
-
+                  if (userId) {
+                    router.push(`/shop-suggestions?userId=${userId}`);
+                  }
                 }}
                 variant="outline"
                 icon={<ShoppingCart size={16} color="#6BCF7F" />}
@@ -347,11 +413,41 @@ export default function DashboardScreen() {
           </Animated.View>
         </View>
       </ScrollView>
-    </SafeAreaView >
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#6BCF7F',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#6B7280',
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginTop: 20,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
@@ -420,7 +516,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     borderRadius: 16,
-
   },
   statContent: {
     flexDirection: 'row',
@@ -456,7 +551,6 @@ const styles = StyleSheet.create({
     elevation: 8,
 
     borderRadius: 16,
-
   },
   cardHeader: {
     flexDirection: 'row',
@@ -481,7 +575,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
     color: '#1F2937',
-
   },
   chartButton: {
     padding: 8,
@@ -520,7 +613,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     borderRadius: 16,
-
   },
   inventoryIconContainer: {
     width: 40,
@@ -549,7 +641,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#6BCF7F',
     marginRight: 4, // spacing before the arrow
-
   },
   inventoryList: {
     gap: 16,
@@ -594,7 +685,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     borderRadius: 16,
-
   },
   suggestionsIconContainer: {
     width: 40,

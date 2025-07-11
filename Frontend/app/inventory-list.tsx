@@ -37,7 +37,6 @@ interface StockItem {
 // type InventoryListRouteProp = RouteProp<RootStackParamList, 'InventoryList'>;
 
 export default function InventoryListScreen() {
-
   const router = useRouter();
   const params = useLocalSearchParams<{ userId?: string }>();
   const userId = params.userId;
@@ -53,8 +52,6 @@ export default function InventoryListScreen() {
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [newDate, setNewDate] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-
-
 
   const fetchInventory = async () => {
     try {
@@ -157,7 +154,10 @@ export default function InventoryListScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/(tabs)')} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()} // Use router.back() instead of router.push('/(tabs)')
+          style={styles.backButton}
+        >
           <ArrowLeft size={22} color="#2D3748" />
         </TouchableOpacity>
 

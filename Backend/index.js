@@ -630,28 +630,74 @@ app.delete('/api/products/:id', async (req, res) => {
 
 // --- USER_STOCKS TABLE ---
 // Get all stocks for a specific user
+// Add this endpoint to your backend to debug the issue
 app.get('/api/users/:userId/stocks', async (req, res) => {
-    const { userId } = req.params;
+  const { userId } = req.params;
+  
+  console.log('Fetching stocks for user:', userId);
+  
+  try {
+    // // Check if user exists first
+    // const { data: user, error: userError } = await supabase
+    //   .from('users')
+    //   .select('user_id')
+    //   .eq('user_id', userId)
+    //   .single();
 
-    const { data, error } = await supabase
-        .from('user_stocks')
-        // This is the magic part! It selects all columns from user_stocks (*)
-        // and from the related 'products' table, it pulls 'product_name' and 'unit'.
-        .select(`
-            *,
-            products (
-                product_name,
-                unit
-            )
-        `)
-        .eq('user_id', userId);
+    // if (userError) {
+    //   console.error('User lookup error:', userError);
+    //   return res.status(404).json({ error: 'User not found' });
+    // }
 
-    if (error) return res.status(500).json({ error: error.message });
+    // Fetch stocks with product details
+    const { data: stocks, error: stocksError } = await supabase
+      .from('user_stocks')
+      .select(`
+        stock_id,
+        quantity,
+        predicted_finish_date,
+        products (
+          product_name,
+          unit
+        )
+      `)
+      .eq('user_id', userId);
 
-    // The data will now look like:
-    // [ { stock_id: '...', quantity: 2, ..., products: { product_name: 'Rice', unit: 'kg' } }, ... ]
-    res.json(data);
+    if (stocksError) {
+      console.error('Stocks fetch error:', stocksError);
+      return res.status(500).json({ error: 'Failed to fetch stocks' });
+    }
+
+    console.log('Stocks found:', stocks?.length || 0);
+    res.json(stocks || []);
+
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
+// app.get('/api/users/:userId/stocks', async (req, res) => {
+//     const { userId } = req.params;
+
+//     const { data, error } = await supabase
+//         .from('user_stocks')
+//         // This is the magic part! It selects all columns from user_stocks (*)
+//         // and from the related 'products' table, it pulls 'product_name' and 'unit'.
+//         .select(`
+//             *,
+//             products (
+//                 product_name,
+//                 unit
+//             )
+//         `)
+//         .eq('user_id', userId);
+
+//     if (error) return res.status(500).json({ error: error.message });
+
+//     // The data will now look like:
+//     // [ { stock_id: '...', quantity: 2, ..., products: { product_name: 'Rice', unit: 'kg' } }, ... ]
+//     res.json(data);
+// });
 
 app.get('/api/stocks/:stockId', async (req, res) => {
     const { data, error } = await supabase.from('user_stocks').select('*').eq('stock_id', req.params.stockId).single();
