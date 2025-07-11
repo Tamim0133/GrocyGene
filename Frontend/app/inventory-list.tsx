@@ -33,8 +33,6 @@ interface StockItem {
   };
 }
 
-// Type for the route params
-// type InventoryListRouteProp = RouteProp<RootStackParamList, 'InventoryList'>;
 
 export default function InventoryListScreen() {
   const router = useRouter();

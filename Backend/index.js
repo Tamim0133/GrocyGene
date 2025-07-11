@@ -101,6 +101,8 @@ app.post('/process-text', async (req, res) => {
             const quantityValue = parseFloat(item.quantity) || 0;
 
             // Return an object that matches the 'user_stocks' table schema
+            console.log("🔍 Checking userId type and value:", typeof userId, userId);
+
             return {
                 user_id: userId,
                 product_id: productData.product_id,

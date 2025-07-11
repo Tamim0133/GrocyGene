@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl, // Import RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -73,15 +74,71 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // For initial load
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false); // For pull-to-refresh
 
   const monthlyBudget = 500;
   const currentSpend = 320;
 
-  // Fetch user ID
+  // Function to fetch dashboard data
+  const fetchData = async (isRefreshing = false) => {
+    if (!userId) {
+      // If userId is not yet available, and it's not a refresh, set loading
+      if (!isRefreshing) setLoading(true);
+      return;
+    }
+
+    if (isRefreshing) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null); // Clear previous errors on new fetch attempt
+
+    try {
+      console.log('Fetching dashboard data for user:', userId);
+      const response = await axios.get(
+        `${API_HOST}/api/users/${userId}/stocks`,
+        {
+          timeout: 10000,
+        }
+      );
+      console.log('Dashboard data fetched successfully:', response.data?.length || 0, 'items');
+      setInventory(response.data || []);
+    } catch (e) {
+      console.error('Failed to fetch dashboard data:', e);
+      if (axios.isAxiosError(e)) {
+        if (e.response?.status === 404) {
+          setError('User not found');
+        } else if (e.response?.status === 500) {
+          setError('Server error. Please try again later.');
+        } else if (e.code === 'ECONNABORTED') {
+          setError('Request timeout. Please check your connection.');
+        } else {
+            // Only show network error if it's not a 404 or 500
+            if (!e.response) {
+                setError(`Network error: ${e.message}`);
+            } else {
+                setError(e.response.data?.error || 'An unexpected error occurred');
+            }
+        }
+      } else {
+        setError('An unexpected error occurred');
+      }
+      setInventory([]); // Set empty inventory on error
+    } finally {
+      if (isRefreshing) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Initial fetch of user ID
   useEffect(() => {
-    const fetchUserId = async () => {
+    const getUserId = async () => {
       try {
         const id = await authService.getUserId();
         console.log('User ID fetched:', id);
@@ -89,58 +146,23 @@ export default function DashboardScreen() {
       } catch (error) {
         console.error('Error fetching user ID:', error);
         setError('Failed to get user information');
+        setLoading(false); // Stop loading if user ID fetch fails
       }
     };
-    fetchUserId();
+    getUserId();
   }, []);
 
-  // Fetch dashboard data when userId is available
+  // Fetch dashboard data when userId changes or on refresh
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!userId) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        console.log('Fetching dashboard data for user:', userId);
-        
-        const response = await axios.get(
-          `${API_HOST}/api/users/${userId}/stocks`,
-          {
-            timeout: 10000, // 10 second timeout
-          }
-        );
-        
-        console.log('Dashboard data fetched successfully:', response.data?.length || 0, 'items');
-        setInventory(response.data || []);
-        
-      } catch (e) {
-        console.error('Failed to fetch dashboard data:', e);
-        
-        if (axios.isAxiosError(e)) {
-          if (e.response?.status === 404) {
-            setError('User not found');
-          } else if (e.response?.status === 500) {
-            setError('Server error. Please try again later.');
-          } else if (e.code === 'ECONNABORTED') {
-            setError('Request timeout. Please check your connection.');
-          } else {
-            setError(`Network error: ${e.message}`);
-          }
-        } else {
-          setError('An unexpected error occurred');
-        }
-        
-        // Set empty inventory on error
-        setInventory([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    if (userId) {
+      fetchData(); // Initial fetch or re-fetch if userId changes
+    }
   }, [userId]);
+
+  // onRefresh handler for RefreshControl
+  const onPullToRefresh = () => {
+    fetchData(true); // Pass true to indicate it's a refresh
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -167,8 +189,6 @@ export default function DashboardScreen() {
       Alert.alert('Error', 'User information not available');
       return;
     }
-    
-    // Use the correct route name and pass userId as a query parameter
     router.push(`/inventory-list?userId=${userId}`);
   };
 
@@ -245,9 +265,7 @@ export default function DashboardScreen() {
             style={styles.retryButton}
             onPress={() => {
               setError(null);
-              setLoading(true);
-              // Trigger refetch by updating userId
-              setUserId(prev => prev);
+              fetchData(); // Retry fetching data
             }}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -259,7 +277,16 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onPullToRefresh}
+            tintColor="#6BCF7F" // Customize spinner color
+          />
+        }
+      >
         <Animated.View entering={FadeInUp.delay(200)} style={styles.header}>
           <View>
             <Text style={styles.greeting}>Good morning! 🌱</Text>
@@ -462,12 +489,13 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: 28,
-    fontFamily: 'Inter-Bold',
+    // fontFamily: 'Inter-Bold', // Ensure this font is loaded
+    fontWeight: 'bold',
     color: '#1F2937',
   },
   subtitle: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
+    // fontFamily: 'Inter-Regular', // Ensure this font is loaded
     color: '#6B7280',
     marginTop: 4,
   },
@@ -478,7 +506,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'linear-gradient(135deg, #6BCF7F 0%, #4ECDC4 100%)',
+    // backgroundColor: 'linear-gradient(135deg, #6BCF7F 0%, #4ECDC4 100%)', // LinearGradient handles this
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6BCF7F',
@@ -489,14 +517,14 @@ const styles = StyleSheet.create({
   },
   profileText: {
     fontSize: 16,
-    fontFamily: 'Inter-Bold',
+    // fontFamily: 'Inter-Bold', // Ensure this font is loaded
+    fontWeight: 'bold',
     color: '#FFFFFF',
   },
   content: {
     paddingHorizontal: 24,
     gap: 20,
     paddingBottom: 40,
-
     backgroundColor: '#FDFEFF',
   },
   statsContainer: {
@@ -509,7 +537,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(107, 207, 127, 0.1)',
-
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -532,12 +559,14 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 24,
-    fontFamily: 'Inter-Bold',
+    // fontFamily: 'Inter-Bold', // Ensure this font is loaded
+    fontWeight: 'bold',
     color: '#1F2937',
   },
   statLabel: {
     fontSize: 13,
-    fontFamily: 'Inter-Medium',
+    // fontFamily: 'Inter-Medium', // Ensure this font is loaded
+    fontWeight: '500',
     color: '#6B7280',
     marginTop: 2,
   },
@@ -549,7 +578,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 24,
     elevation: 8,
-
     borderRadius: 16,
   },
   cardHeader: {
@@ -573,7 +601,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
+    // fontFamily: 'Inter-SemiBold', // Ensure this font is loaded
+    fontWeight: '600',
     color: '#1F2937',
   },
   chartButton: {
@@ -591,17 +620,18 @@ const styles = StyleSheet.create({
   },
   budgetSpent: {
     fontSize: 32,
-    fontFamily: 'Inter-Bold',
+    // fontFamily: 'Inter-Bold', // Ensure this font is loaded
+    fontWeight: 'bold',
     color: '#1F2937',
   },
   budgetTotal: {
     fontSize: 18,
-    fontFamily: 'Inter-Regular',
+    // fontFamily: 'Inter-Regular', // Ensure this font is loaded
     color: '#6B7280',
   },
   budgetRemaining: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    // fontFamily: 'Inter-Regular', // Ensure this font is loaded
     color: '#6B7280',
   },
   inventoryCard: {
@@ -635,10 +665,10 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-
   viewAllText: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
+    // fontFamily: 'Inter-SemiBold', // Ensure this font is loaded
+    fontWeight: '600',
     color: '#6BCF7F',
     marginRight: 4, // spacing before the arrow
   },
@@ -655,12 +685,13 @@ const styles = StyleSheet.create({
   },
   inventoryItemName: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    // fontFamily: 'Inter-SemiBold', // Ensure this font is loaded
+    fontWeight: '600',
     color: '#1F2937',
   },
   inventoryItemDetails: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    // fontFamily: 'Inter-Regular', // Ensure this font is loaded
     color: '#6B7280',
     marginTop: 4,
   },
@@ -674,7 +705,8 @@ const styles = StyleSheet.create({
   },
   daysLeftText: {
     fontSize: 12,
-    fontFamily: 'Inter-Bold',
+    // fontFamily: 'Inter-Bold', // Ensure this font is loaded
+    fontWeight: 'bold',
   },
   suggestionsCard: {
     padding: 24,
@@ -719,12 +751,13 @@ const styles = StyleSheet.create({
   },
   suggestionName: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    // fontFamily: 'Inter-SemiBold', // Ensure this font is loaded
+    fontWeight: '600',
     color: '#1F2937',
   },
   suggestionReason: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    // fontFamily: 'Inter-Regular', // Ensure this font is loaded
     color: '#6B7280',
     marginTop: 2,
   },
@@ -745,7 +778,8 @@ const styles = StyleSheet.create({
   },
   buyNowText: {
     fontSize: 13,
-    fontFamily: 'Inter-SemiBold',
+    // fontFamily: 'Inter-SemiBold', // Ensure this font is loaded
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   shopButton: {

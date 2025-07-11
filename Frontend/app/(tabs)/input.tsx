@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import {
   View,
@@ -13,17 +13,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, Upload } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Button } from '@/components/ui/Button';
+import authService from '@/services/authService';
 
 export default function InputScreen() {
   const [manualText, setManualText] = useState('');
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-
+  const [userId, setUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // -----------------------------------------------
   const host = '192.168.0.108:3000'; // IP : Port
   // ------------------------------------------------
   // Hardcoded user ID for testing purposes
-  const LOGGED_IN_USER_ID = 'e8a077aa-0894-495b-83c0-21f6189f4001';
+    // Fetch user ID
+    useEffect(() => {
+      const fetchUserId = async () => {
+        try {
+          const id = await authService.getUserId();
+          console.log('User ID fetched:', id);
+          setUserId(id);
+        } catch (error) {
+          console.error('Error fetching user ID:', error);
+          setError('Failed to get user information');
+        }
+      };
+      fetchUserId();
+    }, []);
+  
 
   const handleProceed = async () => {
     if (!selectedImageUri) {
@@ -100,18 +116,18 @@ export default function InputScreen() {
     }
 
     // Check if the user ID is set
-    if (!LOGGED_IN_USER_ID) {
+    if (!userId) {
       alert('Error: User is not logged in.');
       return;
     }
 
-    console.log(`Submitting text: "${manualText}" for user: ${LOGGED_IN_USER_ID}`);
+    console.log(`Submitting text: "${manualText}" for user: ${userId}`);
 
     try {
       // MODIFICATION: Send 'text' AND 'userId' in the request body
       const response = await axios.post(`http://${host}/process-text`, {
         text: manualText.trim(),
-        userId: LOGGED_IN_USER_ID, // Send the user's ID
+        userId: userId, // Send the user's ID
       });
 
       console.log('✅ Success from backend:', response.data);
