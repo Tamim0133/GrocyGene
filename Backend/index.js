@@ -857,6 +857,66 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
     res.status(200).json({ message: 'Prediction deleted successfully' });
 });
 
+
+
+// family members add 
+app.post('/api/family-setup', async (req, res) => {
+  const { email, region, family_members } = req.body;
+
+  if (!email || !Array.isArray(family_members)) {
+    return res.status(400).json({ error: 'Missing email or family members' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('family_data')
+      .upsert([
+        {
+          email,
+          region: region || null,  // store null if no region provided
+          family_members,
+        }
+      ]);
+
+    if (error) {
+      console.error('Supabase Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(200).json({ message: 'Family data saved successfully', data });
+  } catch (err) {
+    console.error('Server Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// family fetch 
+app.get('/api/family/:email', async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+
+  try {
+    const { data, error } = await supabase
+      .from('family_data')
+      .select('family_members')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'No data found' });
+    }
+
+    res.status(200).json(data.family_members);
+  } catch (err) {
+    console.error('Server error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 // -------------------------------------------
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
