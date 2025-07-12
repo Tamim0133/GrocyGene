@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 interface FamilyMember {
   id: string;
   name: string;
@@ -68,7 +68,7 @@ export default function ProfileSetupScreen() {
   }));
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
   if (!region) {
     Alert.alert('Error', 'Please select your region');
     return;
@@ -87,8 +87,38 @@ const hasInvalidAge = familyMembers.some(member =>
     Alert.alert('Error', 'Please ensure all members have name, gender, and age between 1 and 120');
     return;
   }
+  
+   try {
+    const email = await AsyncStorage.getItem('user_email');
 
-  router.push('/(tabs)');
+    if (!email) {
+      Alert.alert('Error', 'User email not found. Please log in again.');
+      return;
+    }
+
+    const response = await fetch('http://192.168.0.105:3000/api/family-setup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        region,
+        family_members: familyMembers,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      Alert.alert('Upload Failed', result.error || 'Something went wrong');
+    } else {
+      router.push('/(tabs)');
+    }
+  } catch (err) {
+    console.error(err);
+    Alert.alert('Unexpected Error', 'Something went wrong');
+  }
 };
 
   const renderFamilyMember = (member: FamilyMember, index: number) => (
