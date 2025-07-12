@@ -36,9 +36,9 @@ export default function ProfileSetupScreen() {
   const router = useRouter();
 
   const regions = [
-    'North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania'
+    'Urban', 'Rural'
   ];
-  console.log("HELLO");  const handleAddMember = () => {
+  const handleAddMember = () => {
  const newMember: FamilyMember = {
   id: Date.now().toString(),
   name: '',
