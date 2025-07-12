@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,44 +6,71 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Modal,
+  TextInput,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Settings, Bell, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, CreditCard as Edit, Users, MapPin, Smartphone, Mail } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import authService from '@/services/authService';
+import * as ImagePicker from 'expo-image-picker' // If using Expo
 
-interface ProfileData {
+type ProfileData = {
   name: string;
   email: string;
   phone: string;
   region: string;
   familyMembers: number;
-}
+  picture?: string | null;
+};
 
-interface NotificationSettings {
+type NotificationSettings = {
   lowStock: boolean;
   budgetAlerts: boolean;
   suggestions: boolean;
   weeklyReports: boolean;
-}
-
-const mockProfile: ProfileData = {
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  phone: '+1 (555) 123-4567',
-  region: 'North America',
-  familyMembers: 4,
 };
 
 export default function ProfileScreen() {
-  const [profile] = useState(mockProfile);
+  const [profile, setProfile] = useState<ProfileData>();
   const [notifications, setNotifications] = useState<NotificationSettings>({
     lowStock: true,
     budgetAlerts: true,
     suggestions: false,
     weeklyReports: true,
   });
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editImage, setEditImage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const userData = await authService.getUserData();
+      console.log('Loaded userData:', userData);
+      if (userData) {
+        setProfile({
+          name:
+            userData.user_metadata?.user_name ||
+            userData.user_metadata?.name ||
+            userData.user_name ||
+            userData.name ||
+            '',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          region: userData.region || '',
+          familyMembers: userData.familyMembers || 1,
+          picture: userData.picture || null,
+        });
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleNotificationToggle = (key: keyof NotificationSettings) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
@@ -53,7 +80,7 @@ export default function ProfileScreen() {
     {
       id: 'family',
       title: 'Family Members',
-      subtitle: `${profile.familyMembers} members`,
+      subtitle: `${profile ? profile.familyMembers : 0} members`,
       icon: Users,
       color: '#6BCF7F',
       bgColor: '#E8F5E8',
@@ -88,22 +115,137 @@ export default function ProfileScreen() {
     },
   ];
 
+  const openEdit = () => {
+  try {
+    setEditName(profile?.name || '');
+    setEditPhone(profile?.phone || '');
+    setEditImage(profile?.picture || null);
+    setEditVisible(true);
+  } catch (error) {
+    console.error('Open edit error:', error);
+  }
+};
+  const cancelEdit = () => {
+  setEditVisible(false);
+  setEditName('');
+  setEditPhone('');
+  setEditImage(null);
+  setSaving(false);
+};
+  const saveProfile = async () => {
+  if (!profile) return;
+  
+  setSaving(true);
+  
+  try {
+    let pictureUrl = profile.picture;
+    
+    // If a new image is picked, upload it
+    if (editImage && editImage !== profile.picture) {
+      console.log('Uploading new profile picture...');
+      pictureUrl = await uploadProfilePicture(editImage);
+      
+      // If upload failed, don't proceed
+      if (!pictureUrl && editImage) {
+        console.log('Upload failed, keeping original picture');
+        pictureUrl = profile.picture;
+      }
+    }
+
+    const updatedProfile = {
+      ...profile,
+      name: editName,
+      phone: editPhone,
+      picture: pictureUrl,
+    };
+    
+    setProfile(updatedProfile);
+
+    // Update AsyncStorage
+    const userData = await authService.getUserData();
+    if (userData) {
+      const newUserData = {
+        ...userData,
+        user_metadata: { ...userData.user_metadata, user_name: editName },
+        phone: editPhone,
+        picture: pictureUrl,
+      };
+      await authService.storeUserData(newUserData);
+    }
+
+    setEditVisible(false);
+    console.log('Profile updated successfully');
+    
+  } catch (error) {
+    console.error('Save profile error:', error);
+    alert('Failed to save profile. Please try again.');
+  } finally {
+    setSaving(false);
+  }
+};
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setEditImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadProfilePicture = async (imageUri: string) => {
+  const userId = await authService.getUserId();
+  if (!userId) return null;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: imageUri,
+      name: `${userId}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+
+    const response = await fetch(`http://192.168.0.105:3000/api/users/${userId}/profile-picture`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.url;
+  } catch (error) {
+    console.error('Upload error:', error);
+    alert('Failed to upload profile picture');
+    return null;
+  }
+};
+
   const renderProfileInfo = () => (
     <Animated.View entering={FadeInUp.delay(200)}>
       <Card style={styles.profileCard} variant="elevated">
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {profile.name.split(' ').map(n => n[0]).join('')}
-              </Text>
-            </View>
+            {profile?.picture ? (
+              <Image source={{ uri: profile.picture }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {profile ? profile.name.split(' ').map(n => n[0]).join('') : ''}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileRegion}>{profile.region}</Text>
+            <Text style={styles.profileName}>{profile?.name}</Text>
+            <Text style={styles.profileRegion}>{profile?.region}</Text>
           </View>
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity style={styles.editButton} onPress={openEdit}>
             <Edit size={20} color="#6BCF7F" />
           </TouchableOpacity>
         </View>
@@ -113,21 +255,19 @@ export default function ProfileScreen() {
             <View style={styles.detailIcon}>
               <Mail size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.email}</Text>
+            <Text style={styles.detailText}>{profile?.email}</Text>
           </View>
-          
           <View style={styles.detailItem}>
             <View style={styles.detailIcon}>
               <Smartphone size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.phone}</Text>
+            <Text style={styles.detailText}>{profile?.phone}</Text>
           </View>
-          
           <View style={styles.detailItem}>
             <View style={styles.detailIcon}>
               <MapPin size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.region}</Text>
+            <Text style={styles.detailText}>{profile?.region}</Text>
           </View>
         </View>
       </Card>
@@ -275,6 +415,91 @@ export default function ProfileScreen() {
           <Text style={styles.appInfoText}>Made with 💚 for smart grocery management</Text>
         </View>
       </ScrollView>
+
+      <Modal visible={editVisible} animationType="slide" transparent>
+  <View style={{
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(0,0,0,0.3)'
+  }}>
+    <View style={{
+      backgroundColor: '#fff', 
+      padding: 24, 
+      borderRadius: 16, 
+      width: '85%',
+      maxHeight: '80%'
+    }}>
+      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>
+        Edit Profile
+      </Text>
+      
+      <TouchableOpacity 
+        onPress={pickImage} 
+        style={{ alignSelf: 'center', marginBottom: 16 }}
+        disabled={saving}
+      >
+        {editImage ? (
+          <Image 
+            source={{ uri: editImage }} 
+            style={{ width: 80, height: 80, borderRadius: 40 }} 
+          />
+        ) : (
+          <View style={[styles.avatar, { width: 80, height: 80, borderRadius: 40 }]}>
+            <Text style={styles.avatarText}>
+              {editName.split(' ').map(n => n[0]).join('')}
+            </Text>
+          </View>
+        )}
+        <Text style={{ color: '#6BCF7F', marginTop: 8, textAlign: 'center' }}>
+          Change Picture
+        </Text>
+      </TouchableOpacity>
+      
+      <TextInput
+        placeholder="Name"
+        value={editName}
+        onChangeText={setEditName}
+        style={{ 
+          borderBottomWidth: 1, 
+          marginBottom: 16, 
+          fontSize: 16,
+          paddingVertical: 8
+        }}
+        editable={!saving}
+      />
+      
+      <TextInput
+        placeholder="Phone"
+        value={editPhone}
+        onChangeText={setEditPhone}
+        keyboardType="phone-pad"
+        style={{ 
+          borderBottomWidth: 1, 
+          marginBottom: 24, 
+          fontSize: 16,
+          paddingVertical: 8
+        }}
+        editable={!saving}
+      />
+      
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
+        <Button 
+          title="Cancel" 
+          onPress={cancelEdit}
+          disabled={saving}
+        />
+        <Button 
+          title={saving ? "Saving..." : "Save"} 
+          onPress={saveProfile} 
+          disabled={saving || !editName.trim()}
+        />
+      </View>
+      
+      {saving && <ActivityIndicator style={{ marginTop: 10 }} />}
+    </View>
+  </View>
+</Modal>
     </SafeAreaView>
   );
 }
@@ -331,6 +556,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  avatarImg: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   avatarText: {
     fontSize: 20,
@@ -485,3 +715,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+/*
+http://192.168.0.105:3000/api/users/4b0716e0-c946-4882-af26-dbc1fd662af5/profile-picture
+*/

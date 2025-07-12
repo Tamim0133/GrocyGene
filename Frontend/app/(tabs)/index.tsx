@@ -13,6 +13,12 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressIndicator } from '@/components/ui/ProgressIndicator';
 
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'; // Import hooks
+import axios from 'axios';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
+// import { RootStackParamList } from '@/navigation/AppNavigator'; //
+const API_HOST = 'http://192.168.0.105:3000';
 interface InventoryItem {
   id: string;
   name: string;
