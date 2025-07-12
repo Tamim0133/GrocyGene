@@ -112,9 +112,55 @@ const hasInvalidAge = familyMembers.some(member =>
 
     if (!response.ok) {
       Alert.alert('Upload Failed', result.error || 'Something went wrong');
-    } else {
-      router.push('/(tabs)');
+    } 
+    try {
+    const email = await AsyncStorage.getItem('user_email');
+
+    if (!email) {
+      Alert.alert('Error', 'User email not found. Please log in again.');
+      return;
     }
+
+    const response = await fetch('http://192.168.0.105:3000/api/family-setup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        region,
+        family_members: familyMembers,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      Alert.alert('Upload Failed', result.error || 'Something went wrong');
+    }
+    const demographicsResponse = await fetch('http://192.168.0.105:3000/api/update-user-demographics', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      family_members: familyMembers, 
+    }),
+  });
+
+  const demoResult = await demographicsResponse.json();
+
+  if (!demographicsResponse.ok) {
+    Alert.alert('Warning', 'Family data saved but demographic update failed');
+    console.error('Demographics error:', demoResult.error);
+  }
+
+  router.push('/(tabs)');
+  } catch (err) {
+    console.error(err);
+    Alert.alert('Unexpected Error', 'Something went wrong');
+  }
   } catch (err) {
     console.error(err);
     Alert.alert('Unexpected Error', 'Something went wrong');
