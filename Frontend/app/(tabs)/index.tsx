@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import authService from '@/services/authService';
 
-const API_HOST = 'http://192.168.0.109:3000';
+const API_HOST = 'http://10.198.218.8:3000';
 
 interface InventoryItem {
   stock_id: string;
@@ -199,7 +199,7 @@ export default function DashboardScreen() {
   const renderInventoryItem = (item: InventoryItem) => {
     const daysLeft = Math.ceil(
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
-        (1000 * 3600 * 24)
+      (1000 * 3600 * 24)
     );
 
     return (
