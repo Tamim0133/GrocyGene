@@ -848,14 +848,34 @@ app.post('/api/family-setup', async (req, res) => {
     return res.status(400).json({ error: 'Missing email or family members' });
   }
 
+  // Compute counts from family_members
+  let total_adult_males = 0;
+  let total_adult_females = 0;
+  let total_children = 0;
+
+  family_members.forEach(member => {
+    if (member.age !== null && !isNaN(member.age)) {
+      if (member.age < 18) {
+        total_children++;
+      } else if (member.gender === 'Male') {
+        total_adult_males++;
+      } else if (member.gender === 'Female') {
+        total_adult_females++;
+      }
+    }
+  });
+
   try {
     const { data, error } = await supabase
       .from('family_data')
       .upsert([
         {
           email,
-          region: region || null,  // store null if no region provided
+          region: region || null,
           family_members,
+          total_adult_males,
+          total_adult_females,
+          total_children
         }
       ]);
 
@@ -870,6 +890,7 @@ app.post('/api/family-setup', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 
 // family fetch 
