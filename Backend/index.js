@@ -838,9 +838,7 @@ app.post("/api/update-predictions", async (req, res) => {
 })
 
 
-
-
-// family members add 
+// family member add 
 app.post('/api/family-setup', async (req, res) => {
   const { email, region, family_members } = req.body;
 
@@ -848,34 +846,14 @@ app.post('/api/family-setup', async (req, res) => {
     return res.status(400).json({ error: 'Missing email or family members' });
   }
 
-  // Compute counts from family_members
-  let total_adult_males = 0;
-  let total_adult_females = 0;
-  let total_children = 0;
-
-  family_members.forEach(member => {
-    if (member.age !== null && !isNaN(member.age)) {
-      if (member.age < 18) {
-        total_children++;
-      } else if (member.gender === 'Male') {
-        total_adult_males++;
-      } else if (member.gender === 'Female') {
-        total_adult_females++;
-      }
-    }
-  });
-
   try {
     const { data, error } = await supabase
       .from('family_data')
       .upsert([
         {
           email,
-          region: region || null,
+          region: region || null,  // store null if no region provided
           family_members,
-          total_adult_males,
-          total_adult_females,
-          total_children
         }
       ]);
 
@@ -890,8 +868,6 @@ app.post('/api/family-setup', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
 
 // family fetch 
 app.get('/api/family/:email', async (req, res) => {
@@ -917,6 +893,54 @@ app.get('/api/family/:email', async (req, res) => {
   } catch (err) {
     console.error('Server error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+// member count 
+app.post('/api/update-user-demographics', async (req, res) => {
+  const { email, family_members } = req.body;
+
+  if (!email || !Array.isArray(family_members)) {
+    return res.status(400).json({ error: 'Missing email or family members' });
+  }
+
+  // Calculate demographic counts
+  let adult_male = 0;
+  let adult_female = 0;
+  let child = 0;
+
+  family_members.forEach(member => {
+    if (member.age !== null && !isNaN(member.age)) {
+      if (member.age < 18) {
+        child++;
+      } else if (member.gender === 'Male') {
+        adult_male++;
+      } else if (member.gender === 'Female') {
+        adult_female++;
+      }
+    }
+  });
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        adult_male,
+        adult_female,
+        child
+      })
+      .eq('email', email); // assumes email is a unique identifier
+
+    if (error) {
+      console.error('Supabase Update Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(200).json({ message: 'User demographics updated successfully', data });
+  } catch (err) {
+    console.error('Server Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
