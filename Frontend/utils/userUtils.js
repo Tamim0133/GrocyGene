@@ -44,7 +44,7 @@ export const addItemsToStock = async (items) => {
       throw new Error('User not logged in');
     }
 
-    const response = await fetch('http://192.168.0.108:3000/process-text', {
+    const response = await fetch('http://192.168.0.109:3000/process-text', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,11 +56,11 @@ export const addItemsToStock = async (items) => {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to add items to stock');
     }
-    
+
     return data;
   } catch (error) {
     const errorMessage = getErrorMessage(error);

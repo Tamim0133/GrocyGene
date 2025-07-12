@@ -566,6 +566,339 @@ app.post('/api/auth/signout', async (req, res) => {
     }
 });
 
+
+// Get user profile with family composition
+app.get("/api/users/:userId/profile", async (req, res) => {
+  const { userId } = req.params
+
+  console.log("Fetching user profile for:", userId)
+
+  try {
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select(`
+        user_id,
+        user_name,
+        email,
+        region,
+        adult_male,
+        adult_female,
+        child,
+        created_at
+      `)
+      .eq("user_id", userId)
+      .single()
+
+    if (userError) {
+      console.error("User fetch error:", userError)
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    console.log("User profile found:", user)
+    res.json(user)
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+// Get user stocks with product details (enhanced version of your existing route)
+app.get("/api/users/:userId/stocks", async (req, res) => {
+  const { userId } = req.params
+
+  console.log("Fetching stocks for user:", userId)
+
+  try {
+    // Fetch stocks with product details
+    const { data: stocks, error: stocksError } = await supabase
+      .from("user_stocks")
+      .select(`
+        stock_id,
+        user_id,
+        product_id,
+        quantity,
+        purchase_date,
+        household_events,
+        season,
+        predicted_finish_date,
+        actual_finish_date,
+        created_at,
+        products (
+          product_id,
+          product_name,
+          unit,
+          base_consumption_adult_male,
+          base_consumption_adult_female,
+          base_consumption_child
+        )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+
+    if (stocksError) {
+      console.error("Stocks fetch error:", stocksError)
+      return res.status(500).json({ error: "Failed to fetch stocks" })
+    }
+
+    console.log("Stocks found:", stocks?.length || 0)
+    res.json(stocks || [])
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+
+
+// Get comprehensive prediction data (user + stocks)
+app.get("/api/users/:userId/prediction-data", async (req, res) => {
+  const { userId } = req.params
+
+  console.log("Fetching prediction data for user:", userId)
+
+  try {
+    // Fetch user profile
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select(`
+        user_id,
+        user_name,
+        region,
+        adult_male,
+        adult_female,
+        child
+      `)
+      .eq("user_id", userId)
+      .single()
+
+    if (userError) {
+      console.error("User fetch error:", userError)
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    // Fetch current stocks
+    const { data: stocks, error: stocksError } = await supabase
+      .from("user_stocks")
+      .select(`
+        stock_id,
+        product_id,
+        quantity,
+        household_events,
+        season,
+        predicted_finish_date,
+        purchase_date,
+        products (
+          product_name,
+          unit,
+          base_consumption_adult_male,
+          base_consumption_adult_female,
+          base_consumption_child
+        )
+      `)
+      .eq("user_id", userId)
+      .is("actual_finish_date", null) // Only get items that haven't been consumed yet
+      .order("created_at", { ascending: false })
+
+    if (stocksError) {
+      console.error("Stocks fetch error:", stocksError)
+      return res.status(500).json({ error: "Failed to fetch stocks" })
+    }
+
+    // Prepare response data
+    const predictionData = {
+      user: {
+        user_id: user.user_id,
+        region: user.region || "urban",
+        family: {
+          adult_male: user.adult_male || 0,
+          adult_female: user.adult_female || 0,
+          child: user.child || 0,
+        },
+      },
+      stocks: stocks || [],
+      summary: {
+        total_items: stocks?.length || 0,
+        total_quantity: stocks?.reduce((sum, stock) => sum + stock.quantity, 0) || 0,
+        items_with_predictions: stocks?.filter((stock) => stock.predicted_finish_date).length || 0,
+      },
+    }
+
+    console.log("Prediction data prepared:", predictionData.summary)
+    res.json(predictionData)
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+// Update stock prediction (individual stock item)
+app.put("/api/stocks/:stockId/prediction", async (req, res) => {
+  const { stockId } = req.params
+  const { predicted_finish_date, season, household_events } = req.body
+
+  console.log("Updating prediction for stock:", stockId, {
+    predicted_finish_date,
+    season,
+    household_events,
+  })
+
+  try {
+    const { data: updatedStock, error: updateError } = await supabase
+      .from("user_stocks")
+      .update({
+        predicted_finish_date,
+        season,
+        household_events,
+      })
+      .eq("stock_id", stockId)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error("Stock update error:", updateError)
+      return res.status(500).json({ error: "Failed to update stock prediction" })
+    }
+
+    console.log("Stock prediction updated successfully:", updatedStock)
+    res.json(updatedStock)
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+
+app.post("/api/update-predictions", async (req, res) => {
+  const { userId, predictions, season, household_events } = req.body
+  console.log("Bulk updating predictions for user:", userId)
+  try {
+    // First, get all current stocks for the user with product details
+    const { data: stocks, error: stocksError } = await supabase
+      .from("user_stocks")
+      .select(`
+        stock_id,
+        product_id,
+        quantity,
+        products (
+          product_name
+        )
+      `)
+      .eq("user_id", userId)
+      .is("actual_finish_date", null) // Only update items that haven't been consumed
+
+    if (stocksError) {
+      console.error("Error fetching stocks:", stocksError)
+      return res.status(500).json({ error: "Failed to fetch user stocks" })
+    }
+
+    // Create updates based on predictions
+    const updates = []
+
+    stocks.forEach((stock) => {
+      const productName = stock.products?.product_name?.toLowerCase()
+
+      // Find matching prediction
+      const prediction = Object.entries(predictions).find(
+        ([predProductName]) => predProductName.toLowerCase() === productName,
+      )
+
+      if (prediction) {
+        const [, predictionData] = prediction
+        updates.push(
+          supabase
+            .from("user_stocks")
+            .update({
+              predicted_finish_date: predictionData.predicted_finish_date,
+              season: season || "summer",
+              household_events: household_events || "normal",
+            })
+            .eq("stock_id", stock.stock_id),
+        )
+      }
+    })
+
+    // Execute all updates
+    const results = await Promise.allSettled(updates)
+
+    const successful = results.filter((result) => result.status === "fulfilled").length
+    const failed = results.filter((result) => result.status === "rejected").length
+
+    console.log(`Bulk update completed: ${successful} successful, ${failed} failed`)
+
+    res.json({
+      message: "Predictions updated successfully",
+      updated_count: successful,
+      failed_count: failed,
+      total_stocks: stocks.length,
+    })
+  } catch (error) {
+    console.error("Error in bulk update:", error)
+    res.status(500).json({ error: "Failed to update predictions" })
+  }
+})
+
+
+
+
+// family members add 
+app.post('/api/family-setup', async (req, res) => {
+  const { email, region, family_members } = req.body;
+
+  if (!email || !Array.isArray(family_members)) {
+    return res.status(400).json({ error: 'Missing email or family members' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('family_data')
+      .upsert([
+        {
+          email,
+          region: region || null,  // store null if no region provided
+          family_members,
+        }
+      ]);
+
+    if (error) {
+      console.error('Supabase Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(200).json({ message: 'Family data saved successfully', data });
+  } catch (err) {
+    console.error('Server Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// family fetch 
+app.get('/api/family/:email', async (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+
+  try {
+    const { data, error } = await supabase
+      .from('family_data')
+      .select('family_members')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'No data found' });
+    }
+
+    res.status(200).json(data.family_members);
+  } catch (err) {
+    console.error('Server error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 /// --- USERS TABLE ---
 app.get('/api/users', async (req, res) => {
     const { data, error } = await supabase.from('users').select('*');
@@ -630,76 +963,6 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 
-// --- USER_STOCKS TABLE ---
-// Get all stocks for a specific user
-// Add this endpoint to your backend to debug the issue
-app.get('/api/users/:userId/stocks', async (req, res) => {
-  const { userId } = req.params;
-  
-  console.log('Fetching stocks for user:', userId);
-  
-  try {
-    // // Check if user exists first
-    // const { data: user, error: userError } = await supabase
-    //   .from('users')
-    //   .select('user_id')
-    //   .eq('user_id', userId)
-    //   .single();
-
-    // if (userError) {
-    //   console.error('User lookup error:', userError);
-    //   return res.status(404).json({ error: 'User not found' });
-    // }
-
-    // Fetch stocks with product details
-    const { data: stocks, error: stocksError } = await supabase
-      .from('user_stocks')
-      .select(`
-        stock_id,
-        quantity,
-        predicted_finish_date,
-        products (
-          product_name,
-          unit
-        )
-      `)
-      .eq('user_id', userId);
-
-    if (stocksError) {
-      console.error('Stocks fetch error:', stocksError);
-      return res.status(500).json({ error: 'Failed to fetch stocks' });
-    }
-
-    console.log('Stocks found:', stocks?.length || 0);
-    res.json(stocks || []);
-
-  } catch (error) {
-    console.error('Unexpected error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-// app.get('/api/users/:userId/stocks', async (req, res) => {
-//     const { userId } = req.params;
-
-//     const { data, error } = await supabase
-//         .from('user_stocks')
-//         // This is the magic part! It selects all columns from user_stocks (*)
-//         // and from the related 'products' table, it pulls 'product_name' and 'unit'.
-//         .select(`
-//             *,
-//             products (
-//                 product_name,
-//                 unit
-//             )
-//         `)
-//         .eq('user_id', userId);
-
-//     if (error) return res.status(500).json({ error: error.message });
-
-//     // The data will now look like:
-//     // [ { stock_id: '...', quantity: 2, ..., products: { product_name: 'Rice', unit: 'kg' } }, ... ]
-//     res.json(data);
-// });
 
 app.get('/api/stocks/:stockId', async (req, res) => {
     const { data, error } = await supabase.from('user_stocks').select('*').eq('stock_id', req.params.stockId).single();
@@ -859,69 +1122,12 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 
 
 
-// family members add 
-app.post('/api/family-setup', async (req, res) => {
-  const { email, region, family_members } = req.body;
 
-  if (!email || !Array.isArray(family_members)) {
-    return res.status(400).json({ error: 'Missing email or family members' });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('family_data')
-      .upsert([
-        {
-          email,
-          region: region || null,  // store null if no region provided
-          family_members,
-        }
-      ]);
-
-    if (error) {
-      console.error('Supabase Error:', error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    res.status(200).json({ message: 'Family data saved successfully', data });
-  } catch (err) {
-    console.error('Server Error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-
-// family fetch 
-app.get('/api/family/:email', async (req, res) => {
-  const email = decodeURIComponent(req.params.email);
-
-  try {
-    const { data, error } = await supabase
-      .from('family_data')
-      .select('family_members')
-      .eq('email', email)
-      .single();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    if (!data) {
-      return res.status(404).json({ error: 'No data found' });
-    }
-
-    res.status(200).json(data.family_members);
-  } catch (err) {
-    console.error('Server error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 // -------------------------------------------
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.108";
+const IP ="192.168.0.109";
 app.listen(port, IP, () => {
     console.log(`🚀 Server running on ${IP}:${port}`);
 });

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://192.168.0.108:3000';
+const API_BASE_URL = 'http://192.168.0.109:3000';
 
 const handleError = (error) => {
   if (error instanceof Error) {
@@ -70,7 +70,7 @@ class AuthService {
       });
 
       const text = await response.text();
-      
+
       let data;
       try {
         data = JSON.parse(text);
@@ -83,7 +83,7 @@ class AuthService {
       }
 
       console.log('Signup successful:', data);
-      
+
       if (data.user) {
         await this.storeUserData(data.user);
         console.log('User data stored successfully:', data.user);
@@ -110,7 +110,7 @@ class AuthService {
 
       const text = await response.text();
       console.log('Raw send OTP response:', text);
-      
+
       let data;
       try {
         data = JSON.parse(text);

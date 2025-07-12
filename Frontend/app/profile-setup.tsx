@@ -96,7 +96,7 @@ const hasInvalidAge = familyMembers.some(member =>
       return;
     }
 
-    const response = await fetch('http://192.168.0.105:3000/api/family-setup', {
+    const response = await fetch('http://192.168.0.109:3000/api/family-setup', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

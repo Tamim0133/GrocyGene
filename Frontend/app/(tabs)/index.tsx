@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import authService from '@/services/authService';
 
-const API_HOST = 'http://192.168.0.108:3000';
+const API_HOST = 'http://192.168.0.109:3000';
 
 interface InventoryItem {
   stock_id: string;
@@ -104,7 +104,11 @@ export default function DashboardScreen() {
           timeout: 10000,
         }
       );
-      console.log('Dashboard data fetched successfully:', response.data?.length || 0, 'items');
+      console.log(
+        'Dashboard data fetched successfully:',
+        response.data?.length || 0,
+        'items'
+      );
       setInventory(response.data || []);
     } catch (e) {
       console.error('Failed to fetch dashboard data:', e);
@@ -116,12 +120,12 @@ export default function DashboardScreen() {
         } else if (e.code === 'ECONNABORTED') {
           setError('Request timeout. Please check your connection.');
         } else {
-            // Only show network error if it's not a 404 or 500
-            if (!e.response) {
-                setError(`Network error: ${e.message}`);
-            } else {
-                setError(e.response.data?.error || 'An unexpected error occurred');
-            }
+          // Only show network error if it's not a 404 or 500
+          if (!e.response) {
+            setError(`Network error: ${e.message}`);
+          } else {
+            setError(e.response.data?.error || 'An unexpected error occurred');
+          }
         }
       } else {
         setError('An unexpected error occurred');
@@ -195,9 +199,9 @@ export default function DashboardScreen() {
   const renderInventoryItem = (item: InventoryItem) => {
     const daysLeft = Math.ceil(
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
-      (1000 * 3600 * 24)
+        (1000 * 3600 * 24)
     );
-    
+
     return (
       <View key={item.stock_id} style={styles.inventoryItem}>
         <View style={styles.inventoryItemContent}>
