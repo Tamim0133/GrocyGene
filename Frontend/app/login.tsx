@@ -7,90 +7,339 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { User, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { User, Lock, Eye, EyeOff, Mail, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import authService from '@/services/authService';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
+// Helper function to handle errors
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'An unexpected error occurred';
+};
+
 export default function LoginScreen() {
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetStep, setResetStep] = useState(1); // 1: email, 2: otp, 3: new password
+  const [resetData, setResetData] = useState({
+    email: '',
+    otp: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleLogin = () => {
-    if (!formData.username || !formData.password) {
+  const handleResetInputChange = (field: string, value: string) => {
+    setResetData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLogin = async () => {
+    if (!formData.email || !formData.password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-    router.push('/(tabs)');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const result = await authService.signIn(formData.email, formData.password);
+      
+      Alert.alert('Success', 'Login successful!', [
+        {
+          text: 'OK',
+          onPress: () => router.push('/(tabs)'),
+        },
+      ]);
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleForgotPassword = () => {
-    if (!forgotEmail) {
+  const handleSendResetOTP = async () => {
+    if (!resetData.email) {
       Alert.alert('Error', 'Please enter your email address');
       return;
     }
-    Alert.alert('Success', 'Password reset link sent to your email');
-    setShowForgotPassword(false);
-    setForgotEmail('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resetData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await authService.sendPasswordResetOTP(resetData.email);
+      
+      Alert.alert(
+        'Success',
+        'A password reset OTP has been sent to your email. Please check your inbox.',
+        [
+          {
+            text: 'OK',
+            onPress: () => setResetStep(2),
+          },
+        ]
+      );
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+const handleVerifyOTP = async () => {
+  if (!resetData.otp || resetData.otp.length !== 6) {
+    Alert.alert('Error', 'Please enter the valid 6 digit OTP sent to your email');
+    return;
+  }
+
+  setIsLoading(true);
+  
+  try {
+    // Use the new password reset OTP verification method
+    await authService.verifyPasswordResetOTP(resetData.email, resetData.otp);
+    
+    Alert.alert(
+      'Success',
+      'OTP verified successfully. Please enter your new password.',
+      [
+        {
+          text: 'OK',
+          onPress: () => setResetStep(3),
+        },
+      ]
+    );
+  } catch (error) {
+    const errorMessage = getErrorMessage(error);
+    Alert.alert('Error', errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  const validatePassword = (password: string) => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (password.length < minLength) {
+      return 'Password must be at least 8 characters long';
+    }
+    if (!hasUpperCase) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!hasLowerCase) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!hasNumbers) {
+      return 'Password must contain at least one number';
+    }
+    if (!hasSpecialChar) {
+      return 'Password must contain at least one special character';
+    }
+    return null;
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetData.newPassword || !resetData.confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (resetData.newPassword !== resetData.confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    const passwordError = validatePassword(resetData.newPassword);
+    if (passwordError) {
+      Alert.alert('Error', passwordError);
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      await authService.resetPassword(resetData.email, resetData.newPassword);
+      
+      Alert.alert(
+        'Success',
+        'Your password has been reset successfully. You can now log in with your new password.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowForgotPassword(false);
+              setResetStep(1);
+              setResetData({
+                email: '',
+                otp: '',
+                newPassword: '',
+                confirmPassword: '',
+              });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
     Alert.alert('Social Login', `${provider} login would be implemented here`);
   };
 
-  if (showForgotPassword) {
+  const goBackToLogin = () => {
+    setShowForgotPassword(false);
+    setResetStep(1);
+    setResetData({
+      email: '',
+      otp: '',
+      newPassword: '',
+      confirmPassword: '',
+    });
+  };
+
+  // Reset Email Step
+  if (showForgotPassword && resetStep === 1) {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInUp.delay(200)} style={styles.content}>
+            <TouchableOpacity style={styles.backButtonTop} onPress={goBackToLogin}>
+              <ArrowLeft size={24} color="#6BCF7F" />
+            </TouchableOpacity>
+            
             <View style={styles.header}>
               <Text style={styles.title}>Reset Password</Text>
               <Text style={styles.subtitle}>
-                Enter your email address and we'll send you a link to reset your password
+                Enter your email address and we'll send you a verification code
               </Text>
             </View>
 
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email Address</Text>
+                <View style={styles.inputWithIcon}>
+                  <Mail size={20} color="#A0AEC0" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, styles.inputWithIconText]}
+                    placeholder="Enter your email"
+                    value={resetData.email}
+                    onChangeText={(value) => handleResetInputChange('email', value)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    placeholderTextColor="#A0AEC0"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
+              <AnimatedTouchableOpacity
+                style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                onPress={handleSendResetOTP}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Send Verification Code</Text>
+                )}
+              </AnimatedTouchableOpacity>
+            </Animated.View>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // OTP Verification Step
+  if (showForgotPassword && resetStep === 2) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Animated.View entering={FadeInUp.delay(200)} style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Enter Verification Code</Text>
+              <Text style={styles.subtitle}>
+                We've sent a 6-digit code to {resetData.email}
+              </Text>
+            </View>
+
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  value={forgotEmail}
-                  onChangeText={setForgotEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  style={[styles.input, styles.otpInput]}
+                  placeholder="000000"
+                  value={resetData.otp}
+                  onChangeText={(value) => handleResetInputChange('otp', value)}
+                  keyboardType="numeric"
+                  maxLength={6}
                   placeholderTextColor="#A0AEC0"
+                  editable={!isLoading}
                 />
               </View>
             </View>
 
             <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
               <AnimatedTouchableOpacity
-                style={styles.primaryButton}
-                onPress={handleForgotPassword}
+                style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                onPress={handleVerifyOTP}
+                disabled={isLoading}
               >
-                <Text style={styles.primaryButtonText}>Send Reset Link</Text>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Verify Code</Text>
+                )}
               </AnimatedTouchableOpacity>
 
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => setShowForgotPassword(false)}
+                onPress={handleSendResetOTP}
+                disabled={isLoading}
               >
-                <Text style={styles.backButtonText}>Back to Login</Text>
+                <Text style={styles.backButtonText}>Resend Code</Text>
               </TouchableOpacity>
             </Animated.View>
           </Animated.View>
@@ -99,6 +348,73 @@ export default function LoginScreen() {
     );
   }
 
+  // New Password Step
+  if (showForgotPassword && resetStep === 3) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Animated.View entering={FadeInUp.delay(200)} style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Create New Password</Text>
+              <Text style={styles.subtitle}>
+                Your new password must be different from your previous password
+              </Text>
+            </View>
+
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>New Password</Text>
+                <View style={styles.inputWithIcon}>
+                  <Lock size={20} color="#A0AEC0" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, styles.inputWithIconText]}
+                    placeholder="Enter new password"
+                    value={resetData.newPassword}
+                    onChangeText={(value) => handleResetInputChange('newPassword', value)}
+                    secureTextEntry
+                    placeholderTextColor="#A0AEC0"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <View style={styles.inputWithIcon}>
+                  <Lock size={20} color="#A0AEC0" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, styles.inputWithIconText]}
+                    placeholder="Confirm new password"
+                    value={resetData.confirmPassword}
+                    onChangeText={(value) => handleResetInputChange('confirmPassword', value)}
+                    secureTextEntry
+                    placeholderTextColor="#A0AEC0"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
+              <AnimatedTouchableOpacity
+                style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                onPress={handleResetPassword}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Reset Password</Text>
+                )}
+              </AnimatedTouchableOpacity>
+            </Animated.View>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // Main Login Screen
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -111,16 +427,18 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Username</Text>
+              <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWithIcon}>
-                <User size={20} color="#A0AEC0" style={styles.inputIcon} />
+                <Mail size={20} color="#A0AEC0" style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, styles.inputWithIconText]}
-                  placeholder="Enter your username"
-                  value={formData.username}
-                  onChangeText={(value) => handleInputChange('username', value)}
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChangeText={(value) => handleInputChange('email', value)}
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   placeholderTextColor="#A0AEC0"
+                  editable={!isLoading}
                 />
               </View>
             </View>
@@ -136,10 +454,12 @@ export default function LoginScreen() {
                   onChangeText={(value) => handleInputChange('password', value)}
                   secureTextEntry={!showPassword}
                   placeholderTextColor="#A0AEC0"
+                  editable={!isLoading}
                 />
                 <TouchableOpacity
                   style={styles.eyeIcon}
                   onPress={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
                 >
                   {showPassword ? (
                     <EyeOff size={20} color="#A0AEC0" />
@@ -153,6 +473,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.forgotPassword}
               onPress={() => setShowForgotPassword(true)}
+              disabled={isLoading}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -160,10 +481,15 @@ export default function LoginScreen() {
 
           <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonContainer}>
             <AnimatedTouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isLoading && styles.disabledButton]}
               onPress={handleLogin}
+              disabled={isLoading}
             >
-              <Text style={styles.primaryButtonText}>Sign In</Text>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Sign In</Text>
+              )}
             </AnimatedTouchableOpacity>
 
             <View style={styles.divider}>
@@ -176,12 +502,14 @@ export default function LoginScreen() {
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Google')}
+                disabled={isLoading}
               >
                 <Text style={styles.socialButtonText}>G</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.socialButton}
                 onPress={() => handleSocialLogin('Facebook')}
+                disabled={isLoading}
               >
                 <Text style={styles.socialButtonText}>f</Text>
               </TouchableOpacity>
@@ -190,6 +518,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.signUpLink}
               onPress={() => router.push('/onboarding')}
+              disabled={isLoading}
             >
               <Text style={styles.signUpLinkText}>
                 Don't have an account? <Text style={styles.signUpLinkBold}>Sign Up</Text>
@@ -211,27 +540,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 40,
   },
+  backButtonTop: {
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+    padding: 8,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 40,
   },
   appName: {
     fontSize: 36,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
     color: '#6BCF7F',
     marginBottom: 24,
   },
   title: {
     fontSize: 28,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#2D3748',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     color: '#718096',
-    fontFamily: 'Inter-Regular',
     textAlign: 'center',
+    lineHeight: 24,
   },
   formContainer: {
     gap: 24,
@@ -242,7 +576,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 15,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#2D3748',
   },
   input: {
@@ -252,13 +586,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 18,
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
     backgroundColor: '#FFFFFF',
     shadowColor: '#6BCF7F',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    color: '#2D3748',
   },
   inputWithIcon: {
     position: 'relative',
@@ -278,6 +612,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 18,
     zIndex: 1,
+    padding: 4,
+  },
+  otpInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '600',
+    letterSpacing: 8,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
@@ -285,7 +626,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 14,
     color: '#6BCF7F',
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
   buttonContainer: {
     gap: 20,
@@ -305,7 +646,12 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#A0AEC0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   backButton: {
     borderWidth: 1,
@@ -318,7 +664,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#4A5568',
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
   divider: {
     flexDirection: 'row',
@@ -333,7 +679,6 @@ const styles = StyleSheet.create({
   dividerText: {
     fontSize: 14,
     color: '#718096',
-    fontFamily: 'Inter-Regular',
   },
   socialContainer: {
     flexDirection: 'row',
@@ -353,10 +698,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    minWidth: 60,
   },
   socialButtonText: {
     fontSize: 18,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
     color: '#4A5568',
   },
   signUpLink: {
@@ -365,10 +711,9 @@ const styles = StyleSheet.create({
   signUpLinkText: {
     fontSize: 14,
     color: '#718096',
-    fontFamily: 'Inter-Regular',
   },
   signUpLinkBold: {
     color: '#6BCF7F',
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
 });

@@ -19,32 +19,33 @@ const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpaci
 
 interface FamilyMember {
   id: string;
-  age: string;
-  gender: 'Male' | 'Female' | 'Other';
-  weight: string;
-  height: string;
+  name: string;
+  age: number | null;
+  gender: 'Male' | 'Female';
 }
+
+
 
 export default function ProfileSetupScreen() {
   const [region, setRegion] = useState('');
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-    { id: '1', age: '', gender: 'Male', weight: '', height: '' }
-  ]);
+ const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
+  { id: '1', name: '', age: null, gender: 'Male' }
+]);
+
   const [showRegionDropdown, setShowRegionDropdown] = useState(false);
   const router = useRouter();
 
   const regions = [
     'North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania'
   ];
+  console.log("HELLO");  const handleAddMember = () => {
+ const newMember: FamilyMember = {
+  id: Date.now().toString(),
+  name: '',
+  age: null,
+  gender: 'Male',
+};
 
-  const handleAddMember = () => {
-    const newMember: FamilyMember = {
-      id: Date.now().toString(),
-      age: '',
-      gender: 'Male',
-      weight: '',
-      height: ''
-    };
     setFamilyMembers([...familyMembers, newMember]);
   };
 
@@ -55,28 +56,40 @@ export default function ProfileSetupScreen() {
   };
 
   const handleMemberChange = (id: string, field: keyof FamilyMember, value: string) => {
-    setFamilyMembers(familyMembers.map(member =>
-      member.id === id ? { ...member, [field]: value } : member
-    ));
+     setFamilyMembers(familyMembers.map(member => {
+    if (member.id === id) {
+      const updatedValue =
+        field === 'age'
+          ? value === '' ? null : parseInt(value)
+          : value;
+      return { ...member, [field]: updatedValue };
+    }
+    return member;
+  }));
   };
 
   const handleComplete = () => {
-    if (!region) {
-      Alert.alert('Error', 'Please select your region');
-      return;
-    }
-    
-    const hasIncompleteMembers = familyMembers.some(member => 
-      !member.age || !member.weight || !member.height
-    );
-    
-    if (hasIncompleteMembers) {
-      Alert.alert('Error', 'Please fill in all family member details');
-      return;
-    }
+  if (!region) {
+    Alert.alert('Error', 'Please select your region');
+    return;
+  }
 
-    router.push('/(tabs)');
-  };
+const hasInvalidAge = familyMembers.some(member =>
+  !member.name.trim() ||
+  !member.gender ||
+  member.age === null || // check null explicitly
+  isNaN(member.age) ||
+  member.age < 1 ||
+  member.age > 120
+);
+
+  if (hasInvalidAge) {
+    Alert.alert('Error', 'Please ensure all members have name, gender, and age between 1 and 120');
+    return;
+  }
+
+  router.push('/(tabs)');
+};
 
   const renderFamilyMember = (member: FamilyMember, index: number) => (
     <Animated.View 
@@ -102,22 +115,39 @@ export default function ProfileSetupScreen() {
         </View>
 
         <View style={styles.memberForm}>
+          <View style={styles.inputContainer}>
+  <Text style={styles.inputLabel}>Name</Text>
+  <TextInput
+    style={styles.input}
+    placeholder="Enter name"
+    value={member.name}
+    onChangeText={(value) => handleMemberChange(member.id, 'name', value)}
+    placeholderTextColor="#A0AEC0"
+  />
+</View>
+
           <View style={styles.formRow}>
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Age</Text>
               <TextInput
                 style={styles.input}
                 placeholder="25"
-                value={member.age}
+                value={member.age !== null ? member.age.toString() : ''}
                 onChangeText={(value) => handleMemberChange(member.id, 'age', value)}
                 keyboardType="numeric"
                 placeholderTextColor="#A0AEC0"
               />
+              <View style={styles.helperTextContainer}>
+  <Text style={styles.star}>*</Text>
+  <Text style={styles.helperText}>
+    Member below 18 years is considerd a child 
+  </Text>
+       </View>
             </View>
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Gender</Text>
               <View style={styles.genderContainer}>
-                {['Male', 'Female', 'Other'].map((gender) => (
+                {['Male', 'Female'].map((gender) => (
                   <TouchableOpacity
                     key={gender}
                     style={[
@@ -138,7 +168,7 @@ export default function ProfileSetupScreen() {
             </View>
           </View>
 
-          <View style={styles.formRow}>
+          {/* <View style={styles.formRow}>
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Weight (kg)</Text>
               <TextInput
@@ -161,7 +191,7 @@ export default function ProfileSetupScreen() {
                 placeholderTextColor="#A0AEC0"
               />
             </View>
-          </View>
+          </View> */}
         </View>
       </Card>
     </Animated.View>
@@ -266,6 +296,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 20,
   },
+helperTextContainer: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',  // align items at the top (first line)
+  marginTop: 4,
+},
+star: {
+  fontSize: 14,
+  fontWeight: 'bold',
+  color: '#718096',
+  marginRight: 4,
+  // remove fixed width, so star doesn't get forced on multiple lines
+  lineHeight: 18,  // try matching line height to text
+},
+helperText: {
+  flex: 1,
+  fontSize: 13,
+  color: 'Black',
+  lineHeight: 18,
+},
+
   title: {
     fontSize: 28,
     fontFamily: 'Inter-Bold',
@@ -414,7 +464,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   genderContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 8,
   },
   genderButton: {
@@ -426,6 +476,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    width: '100%'
   },
   genderButtonActive: {
     backgroundColor: '#6BCF7F',
