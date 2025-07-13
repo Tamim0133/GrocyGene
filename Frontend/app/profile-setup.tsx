@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 interface FamilyMember {
   id: string;
   name: string;
@@ -28,23 +28,23 @@ interface FamilyMember {
 
 export default function ProfileSetupScreen() {
   const [region, setRegion] = useState('');
- const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-  { id: '1', name: '', age: null, gender: 'Male' }
-]);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
+    { id: '1', name: '', age: null, gender: 'Male' }
+  ]);
 
   const [showRegionDropdown, setShowRegionDropdown] = useState(false);
   const router = useRouter();
 
   const regions = [
-    'North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania'
+    'Urban', 'Rural'
   ];
-  console.log("HELLO");  const handleAddMember = () => {
- const newMember: FamilyMember = {
-  id: Date.now().toString(),
-  name: '',
-  age: null,
-  gender: 'Male',
-};
+  const handleAddMember = () => {
+    const newMember: FamilyMember = {
+      id: Date.now().toString(),
+      name: '',
+      age: null,
+      gender: 'Male',
+    };
 
     setFamilyMembers([...familyMembers, newMember]);
   };
@@ -56,43 +56,94 @@ export default function ProfileSetupScreen() {
   };
 
   const handleMemberChange = (id: string, field: keyof FamilyMember, value: string) => {
-     setFamilyMembers(familyMembers.map(member => {
-    if (member.id === id) {
-      const updatedValue =
-        field === 'age'
-          ? value === '' ? null : parseInt(value)
-          : value;
-      return { ...member, [field]: updatedValue };
-    }
-    return member;
-  }));
+    setFamilyMembers(familyMembers.map(member => {
+      if (member.id === id) {
+        const updatedValue =
+          field === 'age'
+            ? value === '' ? null : parseInt(value)
+            : value;
+        return { ...member, [field]: updatedValue };
+      }
+      return member;
+    }));
   };
 
-  const handleComplete = () => {
-  if (!region) {
-    Alert.alert('Error', 'Please select your region');
-    return;
-  }
+  const handleComplete = async () => {
+    if (!region) {
+      Alert.alert('Error', 'Please select your region');
+      return;
+    }
 
-const hasInvalidAge = familyMembers.some(member =>
-  !member.name.trim() ||
-  !member.gender ||
-  member.age === null || // check null explicitly
-  isNaN(member.age) ||
-  member.age < 1 ||
-  member.age > 120
-);
+    const hasInvalidAge = familyMembers.some(member =>
+      !member.name.trim() ||
+      !member.gender ||
+      member.age === null || // check null explicitly
+      isNaN(member.age) ||
+      member.age < 1 ||
+      member.age > 120
+    );
 
-  if (hasInvalidAge) {
-    Alert.alert('Error', 'Please ensure all members have name, gender, and age between 1 and 120');
-    return;
-  }
+    if (hasInvalidAge) {
+      Alert.alert('Error', 'Please ensure all members have name, gender, and age between 1 and 120');
+      return;
+    }
 
-  router.push('/(tabs)');
-};
+    try {
+      const email = await AsyncStorage.getItem('user_email');
+
+      if (!email) {
+        Alert.alert('Error', 'User email not found. Please log in again.');
+        return;
+      }
+
+      // Step 1: Send family setup
+      const response = await fetch('http://192.168.0.110:3000/api/family-setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          region,
+          family_members: familyMembers,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Upload Failed', result.error || 'Something went wrong');
+        return;
+      }
+
+      // Step 2: Update demographics
+      const demographicsResponse = await fetch('http://192.168.0.110:3000/api/update-user-demographics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          family_members: familyMembers,
+        }),
+      });
+
+      const demoResult = await demographicsResponse.json();
+
+      if (!demographicsResponse.ok) {
+        Alert.alert('Warning', 'Family data saved but demographic update failed');
+        console.error('Demographics error:', demoResult.error);
+      }
+      router.push('/(tabs)');
+
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Unexpected Error', 'Something went wrong');
+    }
+  };
 
   const renderFamilyMember = (member: FamilyMember, index: number) => (
-    <Animated.View 
+    <Animated.View
       key={member.id}
       entering={FadeInDown.delay(200 * index)}
     >
@@ -116,15 +167,15 @@ const hasInvalidAge = familyMembers.some(member =>
 
         <View style={styles.memberForm}>
           <View style={styles.inputContainer}>
-  <Text style={styles.inputLabel}>Name</Text>
-  <TextInput
-    style={styles.input}
-    placeholder="Enter name"
-    value={member.name}
-    onChangeText={(value) => handleMemberChange(member.id, 'name', value)}
-    placeholderTextColor="#A0AEC0"
-  />
-</View>
+            <Text style={styles.inputLabel}>Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter name"
+              value={member.name}
+              onChangeText={(value) => handleMemberChange(member.id, 'name', value)}
+              placeholderTextColor="#A0AEC0"
+            />
+          </View>
 
           <View style={styles.formRow}>
             <View style={styles.inputContainer}>
@@ -138,11 +189,11 @@ const hasInvalidAge = familyMembers.some(member =>
                 placeholderTextColor="#A0AEC0"
               />
               <View style={styles.helperTextContainer}>
-  <Text style={styles.star}>*</Text>
-  <Text style={styles.helperText}>
-    Member below 18 years is considerd a child 
-  </Text>
-       </View>
+                <Text style={styles.star}>*</Text>
+                <Text style={styles.helperText}>
+                  Member below 18 years is considerd a child
+                </Text>
+              </View>
             </View>
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Gender</Text>
@@ -222,7 +273,7 @@ const hasInvalidAge = familyMembers.some(member =>
               </Text>
               <ChevronDown size={20} color="#8B9DC3" />
             </TouchableOpacity>
-            
+
             {showRegionDropdown && (
               <View style={styles.dropdown}>
                 {regions.map((regionOption) => (
@@ -296,25 +347,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 20,
   },
-helperTextContainer: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',  // align items at the top (first line)
-  marginTop: 4,
-},
-star: {
-  fontSize: 14,
-  fontWeight: 'bold',
-  color: '#718096',
-  marginRight: 4,
-  // remove fixed width, so star doesn't get forced on multiple lines
-  lineHeight: 18,  // try matching line height to text
-},
-helperText: {
-  flex: 1,
-  fontSize: 13,
-  color: 'Black',
-  lineHeight: 18,
-},
+  helperTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',  // align items at the top (first line)
+    marginTop: 4,
+  },
+  star: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#718096',
+    marginRight: 4,
+    // remove fixed width, so star doesn't get forced on multiple lines
+    lineHeight: 18,  // try matching line height to text
+  },
+  helperText: {
+    flex: 1,
+    fontSize: 13,
+    color: 'Black',
+    lineHeight: 18,
+  },
 
   title: {
     fontSize: 28,

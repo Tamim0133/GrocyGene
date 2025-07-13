@@ -30,16 +30,14 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import authService from '@/services/authService';
 
-const API_HOST = 'http://192.168.0.108:3000';
+const API_HOST = 'http://192.168.0.110:3000';
 
 interface InventoryItem {
-  stock_id: string;
-  products: {
-    product_name: string;
-    unit: string;
-  };
+  stock_id: string;  
   quantity: number;
   predicted_finish_date: string;
+  product_name: string;
+  unit: string;
 }
 
 interface SuggestionItem {
@@ -104,7 +102,11 @@ export default function DashboardScreen() {
           timeout: 10000,
         }
       );
-      console.log('Dashboard data fetched successfully:', response.data?.length || 0, 'items');
+      console.log(
+        'Dashboard data fetched successfully:',
+        response.data?.length || 0,
+        'items'
+      );
       setInventory(response.data || []);
     } catch (e) {
       console.error('Failed to fetch dashboard data:', e);
@@ -116,12 +118,12 @@ export default function DashboardScreen() {
         } else if (e.code === 'ECONNABORTED') {
           setError('Request timeout. Please check your connection.');
         } else {
-            // Only show network error if it's not a 404 or 500
-            if (!e.response) {
-                setError(`Network error: ${e.message}`);
-            } else {
-                setError(e.response.data?.error || 'An unexpected error occurred');
-            }
+          // Only show network error if it's not a 404 or 500
+          if (!e.response) {
+            setError(`Network error: ${e.message}`);
+          } else {
+            setError(e.response.data?.error || 'An unexpected error occurred');
+          }
         }
       } else {
         setError('An unexpected error occurred');
@@ -197,16 +199,16 @@ export default function DashboardScreen() {
       (new Date(item.predicted_finish_date).getTime() - new Date().getTime()) /
       (1000 * 3600 * 24)
     );
-    
+
     return (
       <View key={item.stock_id} style={styles.inventoryItem}>
         <View style={styles.inventoryItemContent}>
           <View>
             <Text style={styles.inventoryItemName}>
-              {item.products.product_name}
+              {item.product_name}
             </Text>
             <Text style={styles.inventoryItemDetails}>
-              {item.quantity} {item.products.unit}
+              {item.quantity} {item.unit}
             </Text>
           </View>
           <View style={styles.inventoryItemRight}>
