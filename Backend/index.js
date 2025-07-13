@@ -1180,7 +1180,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "10.198.218.8";
+const IP = "192.168.0.110";
 app.listen(port, IP, () => {
   console.log(`🚀 Server running on ${IP}:${port}`);
 });

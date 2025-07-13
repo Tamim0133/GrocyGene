@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import authService from '@/services/authService';
 
-const API_HOST = 'http://10.198.218.8:3000';
+const API_HOST = 'http://192.168.0.110:3000';
 
 interface InventoryItem {
   stock_id: string;

@@ -97,7 +97,7 @@ export default function ProfileSetupScreen() {
       }
 
       // Step 1: Send family setup
-      const response = await fetch('http://10.198.218.8:3000/api/family-setup', {
+      const response = await fetch('http://192.168.0.110:3000/api/family-setup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export default function ProfileSetupScreen() {
       }
 
       // Step 2: Update demographics
-      const demographicsResponse = await fetch('http://10.198.218.8:3000/api/update-user-demographics', {
+      const demographicsResponse = await fetch('http://192.168.0.110:3000/api/update-user-demographics', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -27,7 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '@/services/authService';
 
 
-const API_HOST = 'http://10.198.218.8:3000';
+const API_HOST = 'http://192.168.0.110:3000';
 
 type NotificationType = 'alert' | 'info' | 'success' | 'warning';
 

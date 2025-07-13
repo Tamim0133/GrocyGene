@@ -1,6 +1,6 @@
 import AuthService from "./authService"
 
-const API_BASE_URL = "http://10.198.218.8:3000" // Updated to match backend
+const API_BASE_URL = "http://192.168.0.110:3000" // Updated to match backend
 
 const handleError = (error) => {
   if (error instanceof Error) {
