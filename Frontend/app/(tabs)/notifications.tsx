@@ -86,8 +86,6 @@ export default function NotificationsScreen() {
             return diffDays <= 8; // Filter out items finishing in more than 8 days
           })
           .map(async (item: any) => {
-            const productRes = await axios.get(`${API_HOST}/api/products/${item.product_id}`);
-            const product = productRes.data;
 
             const today = new Date();
             const finishDate = new Date(item.predicted_finish_date);
@@ -100,11 +98,11 @@ export default function NotificationsScreen() {
 
             if (diffDays <= 2) {
               type = 'alert';
-              title = `${product.product_name} running low`;
-              message = `You have ${item.quantity} ${product.unit} of ${product.product_name} left. Expected to finish in ${diffDays} day${diffDays !== 1 ? 's' : ''}.`;
+              title = `${item.product_name} running low`;
+              message = `You have ${item.quantity} ${item.unit} of ${item.product_name} left. Expected to finish in ${diffDays} day${diffDays !== 1 ? 's' : ''}.`;
             } else {
-              title = `${product.product_name} stock update`;
-              message = `You have ${item.quantity} ${product.unit}. Expected finish: ${finishDate.toLocaleDateString()}.`;
+              title = `${item.product_name} stock update`;
+              message = `You have ${item.quantity} ${item.unit}. Expected finish: ${finishDate.toLocaleDateString()}.`;
             }
 
             return {

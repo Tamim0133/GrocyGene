@@ -83,7 +83,7 @@ app.post('/process-text', async (req, res) => {
             const stockDataForPython = {
                 user_id: userId,
                 product_name: item.name,
-                unit: item.unit ,
+                unit: item.unit || 'kg' ,
                 quantity: parseFloat(item.quantity) || 1.0, // Ensure quantity is a number
                 purchase_date: new Date().toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
             };

@@ -19,7 +19,6 @@ interface FamilyData {
 }
 
 interface StockItem {
-  product_id: string
   quantity: number
   stock_id: string
   user_id: string
