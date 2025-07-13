@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import * as ImagePicker from 'expo-image-picker';
 import authService from '@/services/authService';
 import { User, Camera } from 'lucide-react-native';
+import { Picker } from '@react-native-picker/picker';
 
 type EditProfileScreenRouteProp = ReturnType<typeof useRoute> & {
   params: { profile: any }
@@ -19,8 +20,8 @@ export default function EditProfileScreen() {
 
   const [name, setName] = useState(profile?.name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
-  const [region, setRegion] = useState(profile?.region || '');
-  const [image, setImage] = useState<string | null>(profile?.picture || null);
+  const [region, setRegion] = useState(profile?.region || 'urban');
+  const [image, setImage] = useState<string | null>(profile?.profile_picture_url || profile?.picture || null);
   const [saving, setSaving] = useState(false);
 
   const pickImage = async () => {
@@ -39,28 +40,51 @@ export default function EditProfileScreen() {
     setSaving(true);
     try {
       let pictureUrl = image;
-      if (image && image !== profile.picture) {
+      if (image && image !== profile.profile_picture_url && image !== profile.picture) {
         pictureUrl = await uploadProfilePicture(image);
       }
+      const userId = await authService.getUserId();
+      if (!userId) throw new Error('User ID not found');
       const updatedProfile = {
-        ...profile,
-        name,
-        phone,
+        user_name: name,
+        phone_number: phone,
         region,
-        picture: pictureUrl,
+        profile_picture_url: pictureUrl,
       };
-      // Store updated data
-      const userData = await authService.getUserData();
-      if (userData) {
-        const newUserData = {
-          ...userData,
-          user_metadata: { ...userData.user_metadata, user_name: name },
-          phone,
-          region,
-          picture: pictureUrl,
-        };
-        await authService.storeUserData(newUserData);
+      // Update profile in backend
+      const response = await fetch(`http://192.168.0.105:3000/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProfile),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to update profile');
       }
+      // Fetch latest user data from backend and update local storage
+      const userRes = await fetch(`http://192.168.0.105:3000/api/users/${userId}`);
+      let latestUser = await userRes.json();
+      if (Array.isArray(latestUser)) {
+        latestUser = latestUser[0];
+      }
+      // Debug: log structure and types before storing
+      console.log('latestUser to store:', latestUser);
+      if (!latestUser) throw new Error('No user data returned from backend');
+      // Map user_id to id and user_name to name for compatibility
+      const userToStore = {
+        ...latestUser,
+        id: latestUser.id || latestUser.user_id,
+        name: latestUser.name || latestUser.user_name,
+      };
+      if (!userToStore.id || typeof userToStore.id !== 'string') {
+        console.error('User data missing id or id is not a string:', userToStore.id);
+        throw new Error('User data missing id or id is not a string');
+      }
+      if (!userToStore.email || typeof userToStore.email !== 'string') {
+        console.error('User data missing email or email is not a string:', userToStore.email);
+        throw new Error('User data missing email or email is not a string');
+      }
+      await authService.storeUserData(userToStore);
       navigation.goBack();
     } catch (error) {
       console.error('Save error:', error);
@@ -126,13 +150,17 @@ export default function EditProfileScreen() {
             keyboardType="phone-pad"
           />
           <Text style={styles.label}>Region</Text>
-          <TextInput
-            style={styles.input}
-            value={region}
-            onChangeText={setRegion}
-            placeholder="Region"
-            placeholderTextColor="#A0AEC0"
-          />
+          <View style={{ width: '100%', backgroundColor: '#F7FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 4 }}>
+            <Picker
+              selectedValue={region}
+              onValueChange={setRegion}
+              style={{ width: '100%' }}
+              itemStyle={{ fontSize: 16, color: '#2D3748' }}
+            >
+              <Picker.Item label="Urban" value="urban" />
+              <Picker.Item label="Rural" value="rural" />
+            </Picker>
+          </View>
         </View>
         <Button
           title={saving ? 'Saving...' : 'Save Changes'}

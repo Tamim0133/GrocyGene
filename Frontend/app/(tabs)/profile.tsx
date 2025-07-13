@@ -48,23 +48,54 @@ export default function ProfileScreen() {
   const handleNotificationToggle = (key: keyof NotificationSettings) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
+  // Fetch latest user data from backend and update AsyncStorage and state
   const fetchProfile = async () => {
-    const userData = await authService.getUserData();
-    console.log('Loaded userData:', userData);
-    if (userData) {
+    try {
+      const userId = await authService.getUserId();
+      if (!userId) throw new Error('User ID not found');
+      const response = await fetch(`http://192.168.0.105:3000/api/users/${userId}`);
+      let latestUser = await response.json();
+      if (Array.isArray(latestUser)) latestUser = latestUser[0];
+      if (!latestUser) throw new Error('No user data returned from backend');
+      // Map user_id to id and user_name to name for compatibility
+      const userToStore = {
+        ...latestUser,
+        id: latestUser.id || latestUser.user_id,
+        name: latestUser.name || latestUser.user_name,
+      };
+      await authService.storeUserData(userToStore);
       setProfile({
         name:
-          userData.user_metadata?.user_name ||
-          userData.user_metadata?.name ||
-          userData.user_name ||
-          userData.name ||
+          userToStore.user_metadata?.user_name ||
+          userToStore.user_metadata?.name ||
+          userToStore.user_name ||
+          userToStore.name ||
           '',
-        email: userData.email || '',
-        phone: userData.phone || '',
-        region: userData.region || '',
-        familyMembers: userData.familyMembers || 1,
-        picture: userData.picture || null,
+        email: userToStore.email || '',
+        phone: userToStore.phone_number || userToStore.phone || '',
+        region: userToStore.region || '',
+        familyMembers: userToStore.familyMembers || 1,
+        picture: userToStore.profile_picture_url || userToStore.picture || null,
       });
+    } catch (error) {
+      console.error('Failed to fetch profile from backend:', error);
+      // fallback to local storage if backend fails
+      const userData = await authService.getUserData();
+      if (userData) {
+        setProfile({
+          name:
+            userData.user_metadata?.user_name ||
+            userData.user_metadata?.name ||
+            userData.user_name ||
+            userData.name ||
+            '',
+          email: userData.email || '',
+          phone: userData.phone_number || userData.phone || '',
+          region: userData.region || '',
+          familyMembers: userData.familyMembers || 1,
+          picture: userData.profile_picture_url || userData.picture || null,
+        });
+      }
     }
   };
 
