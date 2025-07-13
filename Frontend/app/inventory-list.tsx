@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/Button'; // Assuming this Button compone
 import { useLocalSearchParams } from 'expo-router';
 
 // Define your API host
-const API_HOST = 'http://192.168.0.110:3000';
+const API_HOST = 'http://192.168.0.105:3000';
 
 interface StockItem {
   stock_id: string;

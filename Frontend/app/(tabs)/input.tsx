@@ -73,7 +73,7 @@ export default function InputScreen() {
 
   // -----------------------------------------------
   // IMPORTANT: Make sure this matches your backend IP
-  const host = "192.168.0.110:3000" // Updated to match your backend IP
+  const host = "192.168.0.105:3000" // Updated to match your backend IP
   // ------------------------------------------------
 
   // Get current season

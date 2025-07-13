@@ -1180,8 +1180,47 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.110";
+const IP = "192.168.0.105";
 app.listen(port, IP, () => {
   console.log(`🚀 Server running on ${IP}:${port}`);
 });
 
+
+/******************************************************/
+// Profile picture upload endpoint
+app.post('/api/users/:id/profile-picture', upload.single('file'), async (req, res) => {
+  const userId = req.params.id;
+  const file = req.file;
+
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabaseAdmin.storage
+    .from('profile-pictures')
+    .upload(`public/${userId}.jpg`, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+
+  if (error) {
+    console.log('Upload error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  // Get the public URL
+  const { data: publicUrlData } = supabaseAdmin.storage
+    .from('profile-pictures')
+    .getPublicUrl(`public/${userId}.jpg`);
+
+  // Save it in your users table
+  const { error: updateError } = await supabaseAdmin
+    .from('users')
+    .update({ profile_picture_url: publicUrlData.publicUrl })
+    .eq('user_id', userId);
+
+  if (updateError) {
+    return res.status(500).json({ error: updateError.message });
+  }
+
+  res.json({ url: publicUrlData.publicUrl });
+});
