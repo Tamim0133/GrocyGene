@@ -2,7 +2,7 @@
 
 import axios from "axios"
 import * as ImagePicker from "expo-image-picker"
-import { useEffect, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { Image } from "react-native"
 import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -294,35 +294,53 @@ export default function InputScreen() {
   }
 
   const handleProceed = async () => {
-    if (!selectedImageUri) {
-      alert("No image selected")
-      return
+    if (!selectedImageUri || !userId) {
+      alert("No image selected or user not logged in.");
+      return;
     }
-    const formData = new FormData()
+
+    const formData = new FormData();
     formData.append("receiptImage", {
       uri: selectedImageUri,
       type: "image/jpeg",
       name: "receipt.jpg",
-    } as any)
+    } as any);
+
+    setIsProcessingPrediction(true); 
 
     try {
-      const response = await axios.post(`http://${host}/process`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      console.log("Image response from backend:", response.data)
+        // --- THIS IS THE FIX ---
+        // The userId is now part of the URL, not in the formData
+        const url = `http://${host}/process/${userId}`;
+        console.log("Uploading receipt to URL:", url); // For debugging
 
-      // If the response contains stock data, predict depletion
-      if (response.data?.data && Array.isArray(response.data.data)) {
-        await predictDepletionDate(response.data.data)
-      }
+        const response = await axios.post(url, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        
+        console.log("Image response from backend:", response.data);
+
+        if (response.data?.data && Array.isArray(response.data.data)) {
+            const predictionMessages = response.data.data.map((item: { product_name: any; predicted_finish_date: string | number | Date }) => 
+                `• ${item.product_name}: Predicted to finish on ${new Date(item.predicted_finish_date).toLocaleDateString()}`
+            ).join('\n');
+            Alert.alert("Receipt Processed!", predictionMessages);
+        } else {
+             Alert.alert("Success", response.data.message || "Receipt processed.");
+        }
+
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error("Error uploading image:", error.message, error.response?.data)
-      } else {
-        console.error("Unknown error uploading image:", error)
-      }
+        if (axios.isAxiosError(error)) {
+            console.error("Error uploading image:", error.message, error.response?.data);
+            Alert.alert("Error", `Failed to process receipt: ${error.response?.data?.detail || error.message}`);
+        } else {
+            console.error("Unknown error uploading image:", error);
+            Alert.alert("Error", "An unknown error occurred.");
+        }
+    } finally {
+        setIsProcessingPrediction(false); 
     }
-  }
+};
 
   const handleTakePhoto = async () => {
     console.log("Take Photo Clicked !")

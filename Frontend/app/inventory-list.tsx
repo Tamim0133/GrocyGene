@@ -72,7 +72,11 @@ export default function InventoryListScreen() {
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+  const [newQuantity, setNewQuantity] = useState(''); // <-- NEW: For editing quantity
+  const [newUnit, setNewUnit] = useState('');       // <-- NEW: For editing unit
   const [newDate, setNewDate] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false); // For loading indicator on modal button
+
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchInventory = async () => {
@@ -135,25 +139,72 @@ export default function InventoryListScreen() {
 
   const openEditModal = (item: StockItem) => {
     setSelectedItem(item);
-    // Format date to YYYY-MM-DD for TextInput if it's not already
-    const dateObj = new Date(item.predicted_finish_date);
-    const formattedDate = dateObj.toISOString().split('T')[0];
-    setNewDate(formattedDate);
+    // Populate modal with current item's data
+    setNewQuantity(item.quantity.toString());
+    setNewUnit(item.unit);
+    // Clear the date field initially, as it's for new feedback
+    setNewDate(''); 
     setModalVisible(true);
   };
 
-  const handleUpdate = async () => {
-    if (!selectedItem || !newDate) return;
+   const handleUpdate = async () => {
+    if (!selectedItem) return;
+
+    setIsUpdating(true);
+    let success = false;
+    let alertMessage = '';
 
     try {
-      await axios.put(`${API_HOST}/api/stocks/${selectedItem.stock_id}`, {
-        actual_finish_date: newDate, // Ensure your API expects YYYY-MM-DD
-      });
+      // SCENARIO 1: Quantity or Unit was changed -> Re-predict
+      if (
+        newQuantity && (
+          parseFloat(newQuantity) !== selectedItem.quantity ||
+          newUnit.toLowerCase() !== selectedItem.unit.toLowerCase()
+        )
+      ) {
+        // Here you would call a new service method to update and re-predict
+        // For now, let's just log it. We will create this service next.
+        console.log("Action: Update quantity and re-predict", { 
+            stockId: selectedItem.stock_id,
+            newQuantity: parseFloat(newQuantity), 
+            newUnit: newUnit 
+        });
+        
+        await axios.put(`${API_HOST}/api/stocks/${selectedItem.stock_id}/update`, {
+          quantity: parseFloat(newQuantity),
+          unit: newUnit,
+        });
+
+        success = true;
+        alertMessage = 'Stock updated and depletion date has been recalculated.';
+
+      // SCENARIO 2: Actual finish date was provided -> Submit feedback
+      } else if (newDate) {
+         // Here you would call a service method to submit feedback
+        console.log("Action: Submit feedback", {
+            stockId: selectedItem.stock_id,
+            actual_finish_date: newDate,
+        });
+        
+        await axios.put(`${API_HOST}/api/stocks/${selectedItem.stock_id}/feedback`, {
+          actual_finish_date: newDate,
+        });
+
+        success = true;
+        alertMessage = 'Thank you! Your feedback has been saved and will improve future predictions.';
+      }
+      
       setModalVisible(false);
-      Alert.alert('Success', 'Item updated successfully.');
-      fetchInventory(); // Refetch the list to show updated data
+      if (success) {
+        Alert.alert('Success', alertMessage);
+        fetchInventory(); // Refresh list to show updated data
+      }
+      
     } catch (err) {
+      console.error("Update failed:", err);
       Alert.alert('Error', 'Failed to update the item.');
+    } finally {
+        setIsUpdating(false);
     }
   };
 
@@ -312,7 +363,7 @@ export default function InventoryListScreen() {
       />
 
       {/* Edit Modal remains largely the same, but styling adjusted */}
-      <Modal visible={isModalVisible} animationType="fade" transparent>
+    <Modal visible={isModalVisible} animationType="fade" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <TouchableOpacity
@@ -321,18 +372,48 @@ export default function InventoryListScreen() {
             >
               <X size={24} color={colors.primaryText} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Edit Depletion Date</Text>
+
+            <Text style={styles.modalTitle}>Edit Stock Item</Text>
             <Text style={styles.modalItemName}>
               {selectedItem?.product_name || 'Unknown Product'}
             </Text>
+
+            <Text style={styles.modalSectionHeader}>Update Current Quantity</Text>
+            <View style={styles.quantityEditContainer}>
+                <TextInput
+                  style={styles.quantityInput}
+                  value={newQuantity}
+                  onChangeText={setNewQuantity}
+                  placeholder="e.g., 5"
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.secondaryText}
+                />
+                <TextInput
+                  style={styles.unitInput}
+                  value={newUnit}
+                  onChangeText={setNewUnit}
+                  placeholder="e.g., kg"
+                  placeholderTextColor={colors.secondaryText}
+                  autoCapitalize="none"
+                />
+            </View>
+
+            <Text style={styles.modalSeparatorText}>OR</Text>
+
+            <Text style={styles.modalSectionHeader}>Provide Feedback</Text>
             <TextInput
               style={styles.input}
               value={newDate}
               onChangeText={setNewDate}
-              placeholder="YYYY-MM-DD"
+              placeholder="Finished on(YYYY-MM-DD)"
               placeholderTextColor={colors.secondaryText}
             />
-            <Button title="Save Changes" onPress={handleUpdate} />
+
+            <Button 
+                title={isUpdating ? "Saving..." : "Save Changes"} 
+                onPress={handleUpdate} 
+                disabled={isUpdating}
+            />
           </View>
         </View>
       </Modal>
@@ -353,6 +434,43 @@ export default function InventoryListScreen() {
 }
 
 const styles = StyleSheet.create({
+  quantityEditContainer: {
+        flexDirection: 'row',
+        gap: spacing.m,
+        marginBottom: spacing.s,
+    },
+    quantityInput: {
+        flex: 2, // Take more space
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: spacing.m,
+        borderRadius: 12,
+        fontSize: 16,
+        textAlign: 'center'
+    },
+    unitInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: spacing.m,
+        borderRadius: 12,
+        fontSize: 16,
+        textAlign: 'center'
+    },
+    modalSectionHeader: {
+        fontSize: 16,
+        fontFamily: 'Inter-SemiBold',
+        color: colors.secondaryText,
+        marginBottom: spacing.s,
+        alignSelf: 'flex-start'
+    },
+    modalSeparatorText: {
+        fontSize: 14,
+        fontFamily: 'Inter-Bold',
+        color: colors.border,
+        textAlign: 'center',
+        marginVertical: spacing.m
+    },
   container: {
     flex: 1,
     backgroundColor: colors.lightBackground,
