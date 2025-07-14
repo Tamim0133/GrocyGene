@@ -16,7 +16,12 @@ export default function EditProfileScreen() {
   // Accept both navigation and expo-router navigation
   const route = useRoute();
   const navigation = useNavigation();
-  const { profile } = (route as any).params || {};
+  // Accept both stringified and object profile param
+  let profileParam = (route as any).params?.profile;
+  let profile: any = profileParam;
+  if (typeof profileParam === 'string') {
+    try { profile = JSON.parse(profileParam); } catch { profile = {}; }
+  }
 
   const [name, setName] = useState(profile?.name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
@@ -45,11 +50,12 @@ export default function EditProfileScreen() {
       }
       const userId = await authService.getUserId();
       if (!userId) throw new Error('User ID not found');
+      // Only update fields that have changed, keep others from profile
       const updatedProfile = {
-        user_name: name,
-        phone_number: phone,
-        region,
-        profile_picture_url: pictureUrl,
+        user_name: name !== '' ? name : profile?.name || profile?.user_name || '',
+        phone_number: phone !== '' ? phone : profile?.phone || profile?.phone_number || '',
+        region: region !== '' ? region : profile?.region || 'urban',
+        profile_picture_url: pictureUrl !== null ? pictureUrl : profile?.profile_picture_url || profile?.picture || null,
       };
       // Update profile in backend
       const response = await fetch(`http://192.168.0.105:3000/api/users/${userId}`, {
