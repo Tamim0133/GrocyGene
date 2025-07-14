@@ -312,7 +312,11 @@ app.put('/api/stocks/:stockId/feedback', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('user_stocks')
-      .update({ actual_finish_date: actual_finish_date })
+      // THE FIX: Also set is_verified to true
+      .update({
+        actual_finish_date: actual_finish_date,
+        is_verified: true
+      })
       .eq('stock_id', stockId)
       .select()
       .single();
@@ -324,6 +328,32 @@ app.put('/api/stocks/:stockId/feedback', async (req, res) => {
   } catch (error) {
     console.error('Error submitting feedback:', error.message);
     res.status(500).json({ error: 'Failed to save feedback.' });
+  }
+});
+
+
+// --- NEW ENDPOINT: Trigger Retraining ---
+// This endpoint will be called by your app to start the learning process.
+app.post('/api/users/:userId/retrain', async (req, res) => {
+  const { userId } = req.params;
+  console.log(`📞 Received request to retrain model for user: ${userId}`);
+
+  try {
+    // Call the Python backend's /retrain endpoint
+    const pythonResponse = await axios.post(`${PREDICTION_API_URL}/retrain`, {
+      user_id: userId
+    });
+
+    console.log("✅ Response from Python retraining service:", pythonResponse.data);
+
+    // Forward the success response from the Python service to the app
+    res.status(200).json(pythonResponse.data);
+
+  } catch (error) {
+    // Handle errors from the Python service
+    const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error("Error calling Python retraining service:", errorMessage);
+    res.status(500).json({ error: 'Failed to trigger model retraining.', detail: errorMessage });
   }
 });
 
@@ -1310,7 +1340,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "10.158.161.107";
+const IP = "10.33.19.24";
 app.listen(port, IP, () => {
   console.log(`🚀 Server running on ${IP}:${port}`);
 });
