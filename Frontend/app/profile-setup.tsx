@@ -15,7 +15,8 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
 import AsyncStorage from '@react-native-async-storage/async-storage';
 interface FamilyMember {
   id: string;
@@ -24,20 +25,16 @@ interface FamilyMember {
   gender: 'Male' | 'Female';
 }
 
-
-
 export default function ProfileSetupScreen() {
   const [region, setRegion] = useState('');
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-    { id: '1', name: '', age: null, gender: 'Male' }
+    { id: '1', name: '', age: null, gender: 'Male' },
   ]);
 
   const [showRegionDropdown, setShowRegionDropdown] = useState(false);
   const router = useRouter();
 
-  const regions = [
-    'Urban', 'Rural'
-  ];
+  const regions = ['Urban', 'Rural'];
   const handleAddMember = () => {
     const newMember: FamilyMember = {
       id: Date.now().toString(),
@@ -51,21 +48,25 @@ export default function ProfileSetupScreen() {
 
   const handleRemoveMember = (id: string) => {
     if (familyMembers.length > 1) {
-      setFamilyMembers(familyMembers.filter(member => member.id !== id));
+      setFamilyMembers(familyMembers.filter((member) => member.id !== id));
     }
   };
 
-  const handleMemberChange = (id: string, field: keyof FamilyMember, value: string) => {
-    setFamilyMembers(familyMembers.map(member => {
-      if (member.id === id) {
-        const updatedValue =
-          field === 'age'
-            ? value === '' ? null : parseInt(value)
-            : value;
-        return { ...member, [field]: updatedValue };
-      }
-      return member;
-    }));
+  const handleMemberChange = (
+    id: string,
+    field: keyof FamilyMember,
+    value: string
+  ) => {
+    setFamilyMembers(
+      familyMembers.map((member) => {
+        if (member.id === id) {
+          const updatedValue =
+            field === 'age' ? (value === '' ? null : parseInt(value)) : value;
+          return { ...member, [field]: updatedValue };
+        }
+        return member;
+      })
+    );
   };
 
   const handleComplete = async () => {
@@ -74,17 +75,21 @@ export default function ProfileSetupScreen() {
       return;
     }
 
-    const hasInvalidAge = familyMembers.some(member =>
-      !member.name.trim() ||
-      !member.gender ||
-      member.age === null || // check null explicitly
-      isNaN(member.age) ||
-      member.age < 1 ||
-      member.age > 120
+    const hasInvalidAge = familyMembers.some(
+      (member) =>
+        !member.name.trim() ||
+        !member.gender ||
+        member.age === null || // check null explicitly
+        isNaN(member.age) ||
+        member.age < 1 ||
+        member.age > 120
     );
 
     if (hasInvalidAge) {
-      Alert.alert('Error', 'Please ensure all members have name, gender, and age between 1 and 120');
+      Alert.alert(
+        'Error',
+        'Please ensure all members have name, gender, and age between 1 and 120'
+      );
       return;
     }
 
@@ -97,17 +102,20 @@ export default function ProfileSetupScreen() {
       }
 
       // Step 1: Send family setup
-      const response = await fetch('http://192.168.0.110:3000/api/family-setup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          region,
-          family_members: familyMembers,
-        }),
-      });
+      const response = await fetch(
+        'http://10.158.161.107:3000/api/family-setup',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            region,
+            family_members: familyMembers,
+          }),
+        }
+      );
 
       const result = await response.json();
 
@@ -117,25 +125,30 @@ export default function ProfileSetupScreen() {
       }
 
       // Step 2: Update demographics
-      const demographicsResponse = await fetch('http://192.168.0.110:3000/api/update-user-demographics', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          family_members: familyMembers,
-        }),
-      });
+      const demographicsResponse = await fetch(
+        'http://10.158.161.107:3000/api/update-user-demographics',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            family_members: familyMembers,
+          }),
+        }
+      );
 
       const demoResult = await demographicsResponse.json();
 
       if (!demographicsResponse.ok) {
-        Alert.alert('Warning', 'Family data saved but demographic update failed');
+        Alert.alert(
+          'Warning',
+          'Family data saved but demographic update failed'
+        );
         console.error('Demographics error:', demoResult.error);
       }
       router.push('/(tabs)');
-
     } catch (err) {
       console.error(err);
       Alert.alert('Unexpected Error', 'Something went wrong');
@@ -143,10 +156,7 @@ export default function ProfileSetupScreen() {
   };
 
   const renderFamilyMember = (member: FamilyMember, index: number) => (
-    <Animated.View
-      key={member.id}
-      entering={FadeInDown.delay(200 * index)}
-    >
+    <Animated.View key={member.id} entering={FadeInDown.delay(200 * index)}>
       <Card style={styles.memberCard} variant="glass">
         <View style={styles.memberHeader}>
           <View style={styles.memberTitleContainer}>
@@ -172,7 +182,9 @@ export default function ProfileSetupScreen() {
               style={styles.input}
               placeholder="Enter name"
               value={member.name}
-              onChangeText={(value) => handleMemberChange(member.id, 'name', value)}
+              onChangeText={(value) =>
+                handleMemberChange(member.id, 'name', value)
+              }
               placeholderTextColor="#A0AEC0"
             />
           </View>
@@ -184,7 +196,9 @@ export default function ProfileSetupScreen() {
                 style={styles.input}
                 placeholder="25"
                 value={member.age !== null ? member.age.toString() : ''}
-                onChangeText={(value) => handleMemberChange(member.id, 'age', value)}
+                onChangeText={(value) =>
+                  handleMemberChange(member.id, 'age', value)
+                }
                 keyboardType="numeric"
                 placeholderTextColor="#A0AEC0"
               />
@@ -203,14 +217,19 @@ export default function ProfileSetupScreen() {
                     key={gender}
                     style={[
                       styles.genderButton,
-                      member.gender === gender && styles.genderButtonActive
+                      member.gender === gender && styles.genderButtonActive,
                     ]}
-                    onPress={() => handleMemberChange(member.id, 'gender', gender as any)}
+                    onPress={() =>
+                      handleMemberChange(member.id, 'gender', gender as any)
+                    }
                   >
-                    <Text style={[
-                      styles.genderButtonText,
-                      member.gender === gender && styles.genderButtonTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.genderButtonText,
+                        member.gender === gender &&
+                          styles.genderButtonTextActive,
+                      ]}
+                    >
                       {gender}
                     </Text>
                   </TouchableOpacity>
@@ -258,7 +277,8 @@ export default function ProfileSetupScreen() {
             </View>
             <Text style={styles.title}>Personalize Your Experience</Text>
             <Text style={styles.subtitle}>
-              Help us understand your household to provide better recommendations
+              Help us understand your household to provide better
+              recommendations
             </Text>
           </View>
 
@@ -295,10 +315,15 @@ export default function ProfileSetupScreen() {
           <View style={styles.familySection}>
             <View style={styles.familySectionHeader}>
               <Text style={styles.sectionTitle}>Family Members</Text>
-              <Text style={styles.familyCount}>{familyMembers.length} member{familyMembers.length !== 1 ? 's' : ''}</Text>
+              <Text style={styles.familyCount}>
+                {familyMembers.length} member
+                {familyMembers.length !== 1 ? 's' : ''}
+              </Text>
             </View>
 
-            {familyMembers.map((member, index) => renderFamilyMember(member, index))}
+            {familyMembers.map((member, index) =>
+              renderFamilyMember(member, index)
+            )}
 
             <AnimatedTouchableOpacity
               style={styles.addMemberButton}
@@ -310,7 +335,10 @@ export default function ProfileSetupScreen() {
             </AnimatedTouchableOpacity>
           </View>
 
-          <Animated.View entering={FadeInDown.delay(600)} style={styles.buttonContainer}>
+          <Animated.View
+            entering={FadeInDown.delay(600)}
+            style={styles.buttonContainer}
+          >
             <Button
               title="Complete Setup"
               onPress={handleComplete}
@@ -349,7 +377,7 @@ const styles = StyleSheet.create({
   },
   helperTextContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',  // align items at the top (first line)
+    alignItems: 'flex-start', // align items at the top (first line)
     marginTop: 4,
   },
   star: {
@@ -358,7 +386,7 @@ const styles = StyleSheet.create({
     color: '#718096',
     marginRight: 4,
     // remove fixed width, so star doesn't get forced on multiple lines
-    lineHeight: 18,  // try matching line height to text
+    lineHeight: 18, // try matching line height to text
   },
   helperText: {
     flex: 1,
@@ -527,7 +555,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    width: '100%'
+    width: '100%',
   },
   genderButtonActive: {
     backgroundColor: '#6BCF7F',

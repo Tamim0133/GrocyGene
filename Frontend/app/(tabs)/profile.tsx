@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,39 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Settings, Bell, Shield, CircleHelp as HelpCircle, LogOut, ChevronRight, CreditCard as Edit, Users, MapPin, Smartphone, Mail } from 'lucide-react-native';
+import {
+  User,
+  Settings,
+  Bell,
+  Shield,
+  CircleHelp as HelpCircle,
+  LogOut,
+  ChevronRight,
+  CreditCard as Edit,
+  Users,
+  MapPin,
+  Smartphone,
+  Mail,
+} from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import authService from '@/services/authService';
+import * as ImagePicker from 'expo-image-picker'; // If using Expo
+import { useRouter } from 'expo-router'; // Add this import
+import { useFocusEffect } from '@react-navigation/native';
 
-interface ProfileData {
+export interface ProfileData {
   name: string;
   email: string;
   phone: string;
   region: string;
   familyMembers: number;
+  picture?: string | null;
 }
 
 interface NotificationSettings {
@@ -28,32 +48,83 @@ interface NotificationSettings {
   weeklyReports: boolean;
 }
 
-const mockProfile: ProfileData = {
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  phone: '+1 (555) 123-4567',
-  region: 'North America',
-  familyMembers: 4,
-};
-
 export default function ProfileScreen() {
-  const [profile] = useState(mockProfile);
+  const [profile, setProfile] = useState<ProfileData>();
   const [notifications, setNotifications] = useState<NotificationSettings>({
     lowStock: true,
     budgetAlerts: true,
     suggestions: false,
     weeklyReports: true,
   });
+  const router = useRouter(); // Add this line
 
   const handleNotificationToggle = (key: keyof NotificationSettings) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
+    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+  // Fetch latest user data from backend and update AsyncStorage and state
+  const fetchProfile = async () => {
+    try {
+      const userId = await authService.getUserId();
+      if (!userId) throw new Error('User ID not found');
+      const response = await fetch(
+        `http://10.158.161.107:3000/api/users/${userId}`
+      );
+      let latestUser = await response.json();
+      if (Array.isArray(latestUser)) latestUser = latestUser[0];
+      if (!latestUser) throw new Error('No user data returned from backend');
+      // Map user_id to id and user_name to name for compatibility
+      const userToStore = {
+        ...latestUser,
+        id: latestUser.id || latestUser.user_id,
+        name: latestUser.name || latestUser.user_name,
+      };
+      await authService.storeUserData(userToStore);
+      setProfile({
+        name:
+          userToStore.user_metadata?.user_name ||
+          userToStore.user_metadata?.name ||
+          userToStore.user_name ||
+          userToStore.name ||
+          '',
+        email: userToStore.email || '',
+        phone: userToStore.phone_number || userToStore.phone || '',
+        region: userToStore.region || '',
+        familyMembers: userToStore.familyMembers || 1,
+        picture: userToStore.profile_picture_url || userToStore.picture || null,
+      });
+    } catch (error) {
+      console.error('Failed to fetch profile from backend:', error);
+      // fallback to local storage if backend fails
+      const userData = await authService.getUserData();
+      if (userData) {
+        setProfile({
+          name:
+            userData.user_metadata?.user_name ||
+            userData.user_metadata?.name ||
+            userData.user_name ||
+            userData.name ||
+            '',
+          email: userData.email || '',
+          phone: userData.phone_number || userData.phone || '',
+          region: userData.region || '',
+          familyMembers: userData.familyMembers || 1,
+          picture: userData.profile_picture_url || userData.picture || null,
+        });
+      }
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
 
   const menuItems = [
     {
       id: 'family',
       title: 'Family Members',
-      subtitle: `${profile.familyMembers} members`,
+      subtitle: `${profile?.familyMembers} members`,
       icon: Users,
       color: '#6BCF7F',
       bgColor: '#E8F5E8',
@@ -87,23 +158,43 @@ export default function ProfileScreen() {
       onPress: () => {},
     },
   ];
-
   const renderProfileInfo = () => (
     <Animated.View entering={FadeInUp.delay(200)}>
       <Card style={styles.profileCard} variant="elevated">
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {profile.name.split(' ').map(n => n[0]).join('')}
-              </Text>
-            </View>
+            {profile?.picture ? (
+              <Image
+                source={{ uri: profile.picture }}
+                style={styles.avatarImg}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {profile
+                    ? profile.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                    : ''}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileRegion}>{profile.region}</Text>
+            <Text style={styles.profileName}>{profile?.name}</Text>
           </View>
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() =>
+              router.push({
+                pathname: '/EditProfileScreen',
+                params: {
+                  profile: profile ? JSON.stringify(profile) : undefined,
+                },
+              })
+            }
+          >
             <Edit size={20} color="#6BCF7F" />
           </TouchableOpacity>
         </View>
@@ -113,21 +204,21 @@ export default function ProfileScreen() {
             <View style={styles.detailIcon}>
               <Mail size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.email}</Text>
+            <Text style={styles.detailText}>{profile?.email}</Text>
           </View>
-          
+
           <View style={styles.detailItem}>
             <View style={styles.detailIcon}>
               <Smartphone size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.phone}</Text>
+            <Text style={styles.detailText}>{profile?.phone}</Text>
           </View>
-          
+
           <View style={styles.detailItem}>
             <View style={styles.detailIcon}>
               <MapPin size={16} color="#718096" />
             </View>
-            <Text style={styles.detailText}>{profile.region}</Text>
+            <Text style={styles.detailText}>{profile?.region}</Text>
           </View>
         </View>
       </Card>
@@ -212,17 +303,16 @@ export default function ProfileScreen() {
   );
 
   const renderMenuItem = (item: any, index: number) => (
-    <Animated.View 
-      key={item.id}
-      entering={FadeInDown.delay(400 + (100 * index))}
-    >
+    <Animated.View key={item.id} entering={FadeInDown.delay(400 + 100 * index)}>
       <TouchableOpacity
         style={styles.menuItem}
         onPress={item.onPress}
         activeOpacity={0.7}
       >
         <View style={styles.menuItemLeft}>
-          <View style={[styles.menuItemIcon, { backgroundColor: item.bgColor }]}>
+          <View
+            style={[styles.menuItemIcon, { backgroundColor: item.bgColor }]}
+          >
             <item.icon size={20} color={item.color} />
           </View>
           <View style={styles.menuItemText}>
@@ -244,10 +334,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      <ScrollView 
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderProfileInfo()}
         {renderNotificationSettings()}
 
@@ -259,7 +346,10 @@ export default function ProfileScreen() {
           </Card>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(600)} style={styles.logoutContainer}>
+        <Animated.View
+          entering={FadeInDown.delay(600)}
+          style={styles.logoutContainer}
+        >
           <Button
             title="Sign Out"
             onPress={() => {}}
@@ -272,7 +362,9 @@ export default function ProfileScreen() {
 
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>GrocyGenie v1.0.0</Text>
-          <Text style={styles.appInfoText}>Made with 💚 for smart grocery management</Text>
+          <Text style={styles.appInfoText}>
+            Made with 💚 for smart grocery management
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -283,6 +375,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FBFF',
+  },
+  avatarImg: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   header: {
     flexDirection: 'row',

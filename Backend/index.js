@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js"; // 1. Import Supabase
 import nodemailer from 'nodemailer';
 import e from "express";
-import axios from 'axios'; 
+import axios from 'axios';
 
 dotenv.config();
 
@@ -43,17 +43,17 @@ app.get('/', (req, res) => {
 const PREDICTION_API_URL = "https://jannatul03-grocy-genie-grocy-genie-lstm.hf.space";
 
 app.post('/process-text', async (req, res) => {
-    const { text, userId } = req.body;
+  const { text, userId } = req.body;
 
-    if (!text || !userId) {
-        return res.status(400).json({ error: 'Text and userId must be provided.' });
-    }
+  if (!text || !userId) {
+    return res.status(400).json({ error: 'Text and userId must be provided.' });
+  }
 
-    try {
-        console.log(`Received text: "${text}" for user: ${userId}`);
+  try {
+    console.log(`Received text: "${text}" for user: ${userId}`);
 
-        // --- Step 1: Get structured data from AI (Your code is perfect here) ---
-        const prompt = `You will be given a shopping list in either Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the text and return it in JSON format as shown below:
+    // --- Step 1: Get structured data from AI (Your code is perfect here) ---
+    const prompt = `You will be given a shopping list in either Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the text and return it in JSON format as shown below:
 
                             [
                             { "name": "Product A", "quantity": "1", "price": "100" ,"unit": "kg" },
@@ -71,64 +71,81 @@ app.post('/process-text', async (req, res) => {
 
                             Now process the following text:
                             ${req.body.text}`; // Keep your prompt
-        const result = await textModel.generateContent(prompt);
-        let responseText = await result.response.text();
-        responseText = responseText.replace(/```json|```/g, '').trim();
-        const parsedItems = JSON.parse(responseText);
+    const result = await textModel.generateContent(prompt);
+    let responseText = await result.response.text();
+    responseText = responseText.replace(/```json|```/g, '').trim();
+    const parsedItems = JSON.parse(responseText);
 
-        console.log("✅ Clean JSON result from AI:", parsedItems);
+    console.log("✅ Clean JSON result from AI:", parsedItems);
 
-        // --- Step 2: Call the Python Prediction Service for each item ---
-        const predictionPromises = parsedItems.map(item => {
-            const stockDataForPython = {
-                user_id: userId,
-                product_name: item.name,
-                unit: item.unit || 'kg' ,
-                quantity: parseFloat(item.quantity) || 1.0, // Ensure quantity is a number
-                purchase_date: new Date().toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
-            };
+    // --- Step 2: Call the Python Prediction Service for each item ---
+    const predictionPromises = parsedItems.map(item => {
+      const stockDataForPython = {
+        user_id: userId,
+        product_name: item.name,
+        unit: item.unit || 'kg',
+        quantity: parseFloat(item.quantity) || 1.0, // Ensure quantity is a number
+        purchase_date: new Date().toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
+      };
 
-            console.log(`📞 Calling Python service for: ${item.name}`);
-            
-            // This is the crucial part: Node.js calls Python
-            return axios.post(`${PREDICTION_API_URL}/stock/add`, stockDataForPython, {
-                headers: { 'Content-Type': 'application/json' }
-            });
-        });
+      console.log(`📞 Calling Python service for: ${item.name}`);
 
-        // Wait for all the prediction calls to complete
-        const predictionHttpResults = await Promise.all(predictionPromises);
+      // This is the crucial part: Node.js calls Python
+      return axios.post(`${PREDICTION_API_URL}/stock/add`, stockDataForPython, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    });
 
-        // Extract the actual data from the axios responses
-        const finalResults = predictionHttpResults.map(result => result.data);
+    // Wait for all the prediction calls to complete
+    const predictionHttpResults = await Promise.all(predictionPromises);
 
-        console.log("✅ Predictions received from Python:", finalResults);
+    // Extract the actual data from the axios responses
+    const finalResults = predictionHttpResults.map(result => result.data);
 
-        // --- Step 3: Send a success response back to the frontend ---
-        // THIS IS THE STEP THAT WAS MISSING
-        res.status(200).json({
-            message: `Successfully processed and predicted ${finalResults.length} item(s).`,
-            data: finalResults // This will be an array like [{ stock_id, predicted_finish_date, ... }, ...]
-        });
+    console.log("✅ Predictions received from Python:", finalResults);
 
-    } catch (err) {
-        // This will now catch errors from both the AI call and the Python service call
-        const errorMessage = err.response ? JSON.stringify(err.response.data) : err.message;
-        console.error("Error in /process-text flow:", errorMessage);
-        res.status(500).json({ error: 'Failed to process the request.', detail: errorMessage });
-    }
+    // --- Step 3: Send a success response back to the frontend ---
+    // THIS IS THE STEP THAT WAS MISSING
+    res.status(200).json({
+      message: `Successfully processed and predicted ${finalResults.length} item(s).`,
+      data: finalResults // This will be an array like [{ stock_id, predicted_finish_date, ... }, ...]
+    });
+
+  } catch (err) {
+    // This will now catch errors from both the AI call and the Python service call
+    const errorMessage = err.response ? JSON.stringify(err.response.data) : err.message;
+    console.error("Error in /process-text flow:", errorMessage);
+    res.status(500).json({ error: 'Failed to process the request.', detail: errorMessage });
+  }
 });
 
-// Image upload and processing endpoint using Gemini
-app.post('/process', upload.single('receiptImage'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
-    console.log('Received image:');
 
+
+
+app.post('/process/:userId', upload.single('receiptImage'), async (req, res) => {
+  try {
+    // --- THIS IS THE FIX ---
+    // Get the userId from the request parameters, not the body
+    const { userId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image uploaded.' });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is missing from the request URL.' });
+    }
+
+    console.log(`Received image for user ID: ${userId} and type of user: ${typeof userId}`);
+    console.log(`- Name: ${req.file.originalname}`);
+    console.log(`- Size: ${req.file.size} bytes`);
+
+    // --- The rest of your logic remains the same ---
+    // It will work correctly now because `userId` will have a value.
 
     const prompt = `You will be given a receipt image that may contain product names in Bangla, Banglish (Bangla written in English letters), or English. Your task is to extract a structured list of purchased products from the image and return it in JSON format as shown below:
                         [
-                        { "name": "Product A", "quantity": "1", "price": "100" },
+                            { "name": "Product A", "quantity": "1", "price": "100" ,"unit": "kg" },
                         ...
                         ]
 
@@ -137,31 +154,179 @@ app.post('/process', upload.single('receiptImage'), async (req, res) => {
                         - Example: "chal" → "Rice", "lobon" → "Salt", "murgir mangsho" → "Chicken"
                         - Ignore brand names or unnecessary descriptors (e.g., "premium rice" → "Rice").
                         2. If a quantity is mentioned, extract it.
-                        - Example: "2kg chal" → quantity: "2kg"
+                        - Example: "2kg chal" → quantity: "2", unit: "kg"
                         3. If a price is mentioned, include just the numeric value. If not, set "price": null.
                         4. Return a clean JSON array only, without extra formatting, markdown, or explanation.
 
                         Now process the following receipt image:
                         `;
-
     const imagePart = {
       inlineData: {
         data: req.file.buffer.toString("base64"),
         mimeType: req.file.mimetype,
       },
     };
-
     const result = await imageModel.generateContent([prompt, imagePart]);
     let response = await result.response.text();
     response = response.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(response);
-    console.log("Image result:", parsed);
-    res.json({ result: parsed, error: null });
+    const parsedItems = JSON.parse(response);
+    console.log("Image result:", parsedItems);
+
+
+    // --- STEP 2: THIS IS THE FIX ---
+    // Process items SEQUENTIALLY to prevent crashing the Python server
+
+    const finalResults = []; // Create an empty array to hold the results
+
+    // Use a for...of loop which respects the `await` keyword
+    for (const item of parsedItems) {
+      const stockDataForPython = {
+        user_id: userId,
+        product_name: item.name,
+        unit: item.unit || 'kg',
+        quantity: parseFloat(item.quantity) || 1.0,
+        purchase_date: new Date().toISOString().split('T')[0],
+      };
+
+      console.log(`📞 Calling Python service for: ${item.name}`);
+
+      // `await` will PAUSE the loop until this single request is complete
+      const pythonResponse = await axios.post(`${PREDICTION_API_URL}/stock/add`, stockDataForPython, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Add the successful result to our array
+      finalResults.push(pythonResponse.data);
+    }
+    // The loop will not continue to the next item until the previous one is done.
+
+    console.log("✅ All predictions received from Python:", finalResults);
+
+    // --- Step 3: Send the final, complete response ---
+    res.status(200).json({
+      message: `Successfully processed and predicted ${finalResults.length} item(s).`,
+      data: finalResults
+    });
+
   } catch (err) {
-    console.error("Image processing error:", err.message);
-    res.status(500).json({ error: err.message });
+    // This will now catch the specific error from the item that failed.
+    const errorMessage = err.response ? JSON.stringify(err.response.data) : err.message;
+    console.error("Image processing error:", errorMessage);
+    res.status(500).json({ error: "An error occurred while processing an item.", detail: errorMessage });
   }
 });
+
+app.put('/api/stocks/:stockId/update', async (req, res) => {
+  const { stockId } = req.params;
+  const { quantity, unit } = req.body;
+
+  if (!quantity || !unit) {
+    return res.status(400).json({ error: 'Quantity and unit are required.' });
+  }
+
+  try {
+    // Step 1: Get the original stock item to know the product_name and user_id
+    const { data: stockItem, error: fetchError } = await supabase
+      .from('user_stocks')
+      .select('user_id, product_name')
+      .eq('stock_id', stockId)
+      .single();
+
+    if (fetchError || !stockItem) {
+      return res.status(404).json({ error: 'Stock item not found.' });
+    }
+
+    // Step 2: Get the user's full profile for prediction context
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('region, adult_male, adult_female, child')
+      .eq('user_id', stockItem.user_id)
+      .single();
+
+    if (profileError) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    // Step 3: Call the NEW Python `/re-predict` service
+    const payloadForPython = {
+      user_id: stockItem.user_id,
+      product_name: stockItem.product_name,
+      quantity: parseFloat(quantity),
+      unit: unit,
+      // User context for the model
+      region: userProfile.region || 'urban',
+      season: 'summer', // You can make this dynamic if needed, e.g., based on today's date
+      event: 'normal',
+      family: {
+        adult_male: userProfile.adult_male || 0,
+        adult_female: userProfile.adult_female || 0,
+        child: userProfile.child || 0
+      }
+    };
+
+    console.log("📞 Calling Python re-prediction service with payload:", payloadForPython);
+    const pythonResponse = await axios.post(`${PREDICTION_API_URL}/re-predict`, payloadForPython);
+
+    const { predicted_finish_date } = pythonResponse.data;
+
+    if (!predicted_finish_date) {
+      throw new Error('Prediction service did not return a finish date.');
+    }
+
+    console.log(`✅ Received new finish date from Python: ${predicted_finish_date}`);
+
+    // Step 4: Update the ORIGINAL stock item with all new info
+    const { data: updatedStock, error: updateError } = await supabase
+      .from('user_stocks')
+      .update({
+        quantity: parseFloat(quantity),
+        unit: unit,
+        predicted_finish_date: predicted_finish_date,
+        actual_finish_date: null // Important: Clear any previous feedback when re-predicting
+      })
+      .eq('stock_id', stockId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    console.log('✅ Stock item updated successfully in database.');
+    res.status(200).json(updatedStock);
+
+  } catch (error) {
+    const errorMessage = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error('Error updating stock:', errorMessage);
+    res.status(500).json({ error: 'Failed to update stock and re-predict.', detail: errorMessage });
+  }
+});
+
+// --- Endpoint 2: Record feedback (actual_finish_date) ---
+app.put('/api/stocks/:stockId/feedback', async (req, res) => {
+  const { stockId } = req.params;
+  const { actual_finish_date } = req.body;
+
+  if (!actual_finish_date) {
+    return res.status(400).json({ error: 'Actual finish date is required.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('user_stocks')
+      .update({ actual_finish_date: actual_finish_date })
+      .eq('stock_id', stockId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(200).json(data);
+
+  } catch (error) {
+    console.error('Error submitting feedback:', error.message);
+    res.status(500).json({ error: 'Failed to save feedback.' });
+  }
+});
+
 
 // =======================================================
 // DATABASE CRUD ENDPOINTS (NEW SECTION)
@@ -880,6 +1045,43 @@ app.put('/api/stocks/:stockId', async (req, res) => {
 });
 
 
+app.post('/api/users/:id/profile-picture', upload.single('file'), async (req, res) => {
+  const userId = req.params.id;
+  const file = req.file;
+
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabaseAdmin.storage
+    .from('profile-pictures')
+    .upload(`public/${userId}.jpg`, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+
+  if (error) {
+    console.log('Upload error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  // Get the public URL
+  const { data: publicUrlData } = supabaseAdmin.storage
+    .from('profile-pictures')
+    .getPublicUrl(`public/${userId}.jpg`);
+
+  // Save it in your users table
+  const { error: updateError } = await supabaseAdmin
+    .from('users')
+    .update({ profile_picture_url: publicUrlData.publicUrl })
+    .eq('user_id', userId);
+
+  if (updateError) {
+    return res.status(500).json({ error: updateError.message });
+  }
+
+  res.json({ url: publicUrlData.publicUrl });
+});
+
 /// --- USERS TABLE ---
 app.get('/api/users', async (req, res) => {
   const { data, error } = await supabase.from('users').select('*');
@@ -1108,7 +1310,7 @@ app.delete('/api/predictions/:predictionId', async (req, res) => {
 // ------------------------>  IP Address --------------->
 // -------------------------------------------
 
-const IP = "192.168.0.110";
+const IP = "10.158.161.107";
 app.listen(port, IP, () => {
   console.log(`🚀 Server running on ${IP}:${port}`);
 });
