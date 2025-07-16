@@ -102,20 +102,17 @@ export default function ProfileSetupScreen() {
       }
 
       // Step 1: Send family setup
-      const response = await fetch(
-        'http://10.158.161.107:3000/api/family-setup',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            region,
-            family_members: familyMembers,
-          }),
-        }
-      );
+      const response = await fetch('http://10.33.19.24:3000/api/family-setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          region,
+          family_members: familyMembers,
+        }),
+      });
 
       const result = await response.json();
 
@@ -126,7 +123,7 @@ export default function ProfileSetupScreen() {
 
       // Step 2: Update demographics
       const demographicsResponse = await fetch(
-        'http://10.158.161.107:3000/api/update-user-demographics',
+        'http://10.33.19.24:3000/api/update-user-demographics',
         {
           method: 'POST',
           headers: {

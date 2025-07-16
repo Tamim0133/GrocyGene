@@ -26,7 +26,7 @@ import { StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import authService from '@/services/authService';
 
-const API_HOST = 'http://10.158.161.107:3000';
+const API_HOST = 'http://10.33.19.24:3000';
 
 type NotificationType = 'alert' | 'info' | 'success' | 'warning';
 

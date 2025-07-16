@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://10.158.161.107:3000';
+const API_BASE_URL = 'http://10.33.19.24:3000';
 
 const handleError = (error) => {
   if (error instanceof Error) {

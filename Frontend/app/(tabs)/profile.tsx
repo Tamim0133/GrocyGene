@@ -67,7 +67,7 @@ export default function ProfileScreen() {
       const userId = await authService.getUserId();
       if (!userId) throw new Error('User ID not found');
       const response = await fetch(
-        `http://10.158.161.107:3000/api/users/${userId}`
+        `http://10.33.19.24:3000/api/users/${userId}`
       );
       let latestUser = await response.json();
       if (Array.isArray(latestUser)) latestUser = latestUser[0];
@@ -124,11 +124,13 @@ export default function ProfileScreen() {
     {
       id: 'family',
       title: 'Family Members',
-      subtitle: `${profile?.familyMembers} members`,
+      subtitle: 'View and Modify Family Members',
       icon: Users,
       color: '#6BCF7F',
       bgColor: '#E8F5E8',
-      onPress: () => {},
+      onPress: () => {
+        router.push('/family-members' as any);
+      },
     },
     {
       id: 'preferences',

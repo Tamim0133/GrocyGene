@@ -1,6 +1,6 @@
 import AuthService from "./authService"
 
-const API_BASE_URL = "http://10.158.161.107:3000" // Updated to match backend
+const API_BASE_URL = "http://10.33.19.24:3000" // Updated to match backend
 
 const handleError = (error) => {
   if (error instanceof Error) {
@@ -52,6 +52,35 @@ class StockService {
     this.cache.clear()
   }
 
+  async triggerRetraining() {
+    try {
+      const userId = await this.getUserId();
+      console.log(`Requesting model retraining for user: ${userId}`);
+
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/retrain`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || "Failed to start retraining.");
+      }
+
+      // Clear cache to get fresh predictions next time
+      this.clearCache();
+
+      return data; // Should return a success message from the backend
+
+    } catch (error) {
+      const errorMessage = handleError(error);
+      console.error("Error triggering retraining:", errorMessage);
+      throw new Error(errorMessage);
+    }
+  }
   // Get user profile with family composition
   async getUserProfile(useCache = true) {
     try {

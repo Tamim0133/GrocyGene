@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'; // Removed 'use' as it's not a standard React hook
 import { ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-
+import { BrainCircuit } from 'lucide-react-native'; // Import a new icon for retraining
+import StockService from '../services/stockService'; // Assuming your service is here
 import {
   View,
   Text,
@@ -22,7 +23,7 @@ import { Button } from '@/components/ui/Button'; // Assuming this Button compone
 import { useLocalSearchParams } from 'expo-router';
 
 // Define your API host
-const API_HOST = 'http://10.158.161.107:3000';
+const API_HOST = 'http://10.33.19.24:3000';
 
 interface StockItem {
   stock_id: string;
@@ -132,6 +133,35 @@ export default function InventoryListScreen() {
               );
             } catch (err) {
               Alert.alert('Error', 'Failed to delete the item.');
+            }
+          },
+        },
+      ]
+    );
+  };
+  const handleRetrain = () => {
+    Alert.alert(
+      'Improve Predictions',
+      'This will use your recent feedback to retrain the AI model. This may take a moment. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Retrain',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setLoading(true); // Show a loading indicator
+              const result = await StockService.triggerRetraining();
+              Alert.alert('Success', result.message || 'Model is now smarter!');
+              fetchInventory(); // Refresh the list to see new predictions
+            } catch (err) {
+              const errorMessage =
+                err instanceof Error
+                  ? err.message
+                  : 'An unknown error occurred.';
+              Alert.alert('Error', `Retraining failed: ${errorMessage}`);
+            } finally {
+              setLoading(false);
             }
           },
         },
@@ -272,6 +302,7 @@ export default function InventoryListScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.accent} />
+        <Text>Loading Inventory...</Text>
       </View>
     );
   }
@@ -295,7 +326,9 @@ export default function InventoryListScreen() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Full Inventory</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={handleRetrain} style={styles.retrainButton}>
+          <BrainCircuit size={22} color={colors.accent} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -450,6 +483,20 @@ const styles = StyleSheet.create({
     gap: spacing.m,
     marginBottom: spacing.s,
   },
+  retrainButton: {
+    padding: spacing.s,
+    backgroundColor: 'transparent',
+    borderRadius: 999,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.primaryText,
+    flex: 1,
+    textAlign: 'center',
+    // Adjust margin to keep it centered if needed
+    marginHorizontal: 24,
+  },
   quantityInput: {
     flex: 2, // Take more space
     borderWidth: 1,
@@ -519,14 +566,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent', // Make it transparent
     borderRadius: 999, // Make it fully circular
     // Remove elevation from here, rely on parent for header shadow
-  },
-  headerTitle: {
-    fontSize: 22, // Slightly larger title
-    fontFamily: 'Inter-SemiBold',
-    color: colors.primaryText,
-    flex: 1, // Allow title to take space
-    textAlign: 'center', // Center it
-    // marginLeft: -24, // Counteract back button space if needed
   },
   flatListContentContainer: {
     paddingHorizontal: spacing.l, // Padding for the FlatList content

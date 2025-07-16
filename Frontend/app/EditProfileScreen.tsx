@@ -69,7 +69,7 @@ export default function EditProfileScreen() {
       };
       // Update profile in backend
       const response = await fetch(
-        `http://10.158.161.107:3000/api/users/${userId}`,
+        `http://10.33.19.24:3000/api/users/${userId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -82,7 +82,7 @@ export default function EditProfileScreen() {
       }
       // Fetch latest user data from backend and update local storage
       const userRes = await fetch(
-        `http://10.158.161.107:3000/api/users/${userId}`
+        `http://10.33.19.24:3000/api/users/${userId}`
       );
       let latestUser = await userRes.json();
       if (Array.isArray(latestUser)) {
@@ -130,7 +130,7 @@ export default function EditProfileScreen() {
       type: 'image/jpeg',
     } as any);
     const response = await fetch(
-      `http://10.158.161.107:3000/api/users/${userId}/profile-picture`,
+      `http://10.33.19.24:3000/api/users/${userId}/profile-picture`,
       {
         method: 'POST',
         body: formData,
